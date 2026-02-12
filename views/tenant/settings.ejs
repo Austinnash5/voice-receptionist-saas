@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - AI Voice Receptionist</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <a href="/">🤖 AI Voice Receptionist</a>
+      </div>
+      <ul class="nav-menu">
+        <li><a href="/tenant/dashboard">Dashboard</a></li>
+        <li><a href="/tenant/calls">Calls</a></li>
+        <li><a href="/tenant/leads">Leads</a></li>
+        <li><a href="/tenant/settings" class="active">Settings</a></li>
+        <li class="user-menu">
+          <span><%= user.email %></span>
+          <a href="/logout" class="btn btn-sm">Logout</a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <div class="container">
+      <h1>Settings</h1>
+
+      <div class="card">
+        <h2>Receptionist Configuration</h2>
+        <form action="/tenant/settings/receptionist" method="POST">
+          <div class="form-group">
+            <label>Greeting Message</label>
+            <textarea name="greetingMessage" rows="3" required><%= config ? config.greetingMessage : '' %></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Personality</label>
+            <input type="text" name="personality" value="<%= config ? config.personality : 'professional and friendly' %>" required>
+          </div>
+
+          <div class="form-group">
+            <label>Transfer Prompt</label>
+            <textarea name="transferPrompt" rows="2"><%= config ? config.transferPrompt : '' %></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Lead Capture Prompt</label>
+            <textarea name="leadCapturePrompt" rows="2"><%= config ? config.leadCapturePrompt : '' %></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Fallback Message</label>
+            <input type="text" name="fallbackMessage" value="<%= config ? config.fallbackMessage : '' %>">
+          </div>
+
+          <div class="form-group">
+            <label>End Call Message</label>
+            <input type="text" name="endCallMessage" value="<%= config ? config.endCallMessage : '' %>">
+          </div>
+
+          <button type="submit" class="btn btn-primary">Save Configuration</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Transfer Targets</h2>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Phone Number</th>
+                <th>Priority</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% transferTargets.forEach(target => { %>
+              <tr>
+                <td><%= target.name %></td>
+                <td><%= target.phoneNumber %></td>
+                <td><%= target.priority %></td>
+                <td><%= target.isActive ? 'Active' : 'Inactive' %></td>
+              </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Add Transfer Target</h3>
+        <form action="/tenant/settings/transfer-targets" method="POST" class="form-inline">
+          <div class="form-group">
+            <label>Name</label>
+            <input type="text" name="name" required>
+          </div>
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input type="text" name="phoneNumber" placeholder="+15551234567" required>
+          </div>
+          <div class="form-group">
+            <label>Priority</label>
+            <input type="number" name="priority" value="1" min="1">
+          </div>
+          <button type="submit" class="btn btn-primary">Add Target</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Knowledge Base</h2>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Question</th>
+                <th>Answer</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% knowledgeBase.forEach(entry => { %>
+              <tr>
+                <td><%= entry.category %></td>
+                <td><%= entry.question %></td>
+                <td><%= entry.answer.substring(0, 100) %>...</td>
+                <td><%= entry.isActive ? 'Active' : 'Inactive' %></td>
+              </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Add Knowledge Entry</h3>
+        <form action="/tenant/settings/knowledge" method="POST">
+          <div class="form-group">
+            <label>Category</label>
+            <input type="text" name="category" placeholder="e.g., hours, pricing" required>
+          </div>
+          <div class="form-group">
+            <label>Question</label>
+            <input type="text" name="question" required>
+          </div>
+          <div class="form-group">
+            <label>Answer</label>
+            <textarea name="answer" rows="3" required></textarea>
+          </div>
+          <div class="form-group">
+            <label>Keywords (comma-separated)</label>
+            <input type="text" name="keywords" placeholder="hours, open, closed">
+          </div>
+          <button type="submit" class="btn btn-primary">Add Entry</button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; <%= new Date().getFullYear() %> AI Voice Receptionist. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>

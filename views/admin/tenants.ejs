@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Tenants - AI Voice Receptionist</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <a href="/">🤖 AI Voice Receptionist</a>
+      </div>
+      <ul class="nav-menu">
+        <li><a href="/admin/dashboard">Dashboard</a></li>
+        <li><a href="/admin/tenants" class="active">Tenants</a></li>
+        <li><a href="/admin/numbers">Phone Numbers</a></li>
+        <li class="user-menu">
+          <span><%= user.email %></span>
+          <a href="/logout" class="btn btn-sm">Logout</a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <div class="container">
+      <div class="header-actions">
+        <h1>Manage Tenants</h1>
+        <a href="/admin/tenants/new" class="btn btn-primary">Create Tenant</a>
+      </div>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Slug</th>
+              <th>Status</th>
+              <th>Phone Numbers</th>
+              <th>Calls</th>
+              <th>Leads</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% tenants.forEach(tenant => { %>
+            <tr>
+              <td><%= tenant.name %></td>
+              <td><code><%= tenant.slug %></code></td>
+              <td><span class="badge badge-<%= tenant.status.toLowerCase() %>"><%= tenant.status %></span></td>
+              <td><%= tenant.twilioNumbers.length %></td>
+              <td><%= tenant._count.callSessions %></td>
+              <td><%= tenant._count.leads %></td>
+              <td><%= new Date(tenant.createdAt).toLocaleDateString() %></td>
+              <td>
+                <a href="/admin/tenants/<%= tenant.id %>" class="btn btn-sm">View</a>
+              </td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; <%= new Date().getFullYear() %> AI Voice Receptionist. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>

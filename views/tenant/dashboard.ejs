@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - AI Voice Receptionist</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <a href="/">🤖 AI Voice Receptionist</a>
+      </div>
+      <ul class="nav-menu">
+        <li><a href="/tenant/dashboard" class="active">Dashboard</a></li>
+        <li><a href="/tenant/calls">Calls</a></li>
+        <li><a href="/tenant/leads">Leads</a></li>
+        <li><a href="/tenant/settings">Settings</a></li>
+        <li class="user-menu">
+          <span><%= user.email %></span>
+          <a href="/logout" class="btn btn-sm">Logout</a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <div class="container">
+      <h1><%= tenant ? tenant.name : 'Dashboard' %></h1>
+      <p class="subtitle">Last 30 days</p>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value"><%= stats.totalCalls %></div>
+          <div class="stat-label">Total Calls</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= stats.completedCalls %></div>
+          <div class="stat-label">Completed Calls</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= stats.transferredCalls %></div>
+          <div class="stat-label">Transferred</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= stats.totalLeads %></div>
+          <div class="stat-label">Leads Captured</div>
+          <% if (stats.newLeads > 0) { %>
+            <span class="badge badge-new"><%= stats.newLeads %> new</span>
+          <% } %>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= Math.round(stats.avgCallDuration / 60) %> min</div>
+          <div class="stat-label">Avg Call Duration</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <h2>Recent Calls</h2>
+          <a href="/tenant/calls" class="btn">View All</a>
+        </div>
+        
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date/Time</th>
+                <th>From</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Lead</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% recentCalls.forEach(call => { %>
+              <tr>
+                <td><%= new Date(call.startTime).toLocaleString() %></td>
+                <td><%= call.fromNumber %></td>
+                <td><%= call.duration ? Math.round(call.duration / 60) + ' min' : '-' %></td>
+                <td><span class="badge badge-<%= call.status.toLowerCase() %>"><%= call.status %></span></td>
+                <td>
+                  <% if (call.lead) { %>
+                    <a href="/tenant/leads/<%= call.lead.id %>" class="badge badge-success">✓ Captured</a>
+                  <% } else { %>
+                    -
+                  <% } %>
+                </td>
+                <td>
+                  <a href="/tenant/calls/<%= call.id %>" class="btn btn-sm">View</a>
+                </td>
+              </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; <%= new Date().getFullYear() %> AI Voice Receptionist. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>

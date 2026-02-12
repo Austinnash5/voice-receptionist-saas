@@ -1,0 +1,88 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Generate Prisma Client
+      run: npx prisma generate
+      env:
+        DATABASE_URL: postgresql://testuser:testpass@localhost:5432/test_db
+    
+    - name: Run Prisma Migrations
+      run: npx prisma migrate deploy
+      env:
+        DATABASE_URL: postgresql://testuser:testpass@localhost:5432/test_db
+    
+    - name: Build project
+      run: npm run build
+    
+    - name: Check TypeScript
+      run: npx tsc --noEmit
+    
+    # Uncomment when tests are added
+    # - name: Run tests
+    #   run: npm test
+    #   env:
+    #     DATABASE_URL: postgresql://testuser:testpass@localhost:5432/test_db
+    #     REDIS_URL: redis://localhost:6379
+    #     NODE_ENV: test
+    #     SESSION_SECRET: test_secret_key_for_github_actions
+    
+    - name: Build Docker image
+      run: docker build -t ai-voice-receptionist:${{ github.sha }} .
+    
+    - name: Test Docker image
+      run: |
+        docker run -d --name test-app \
+          -e DATABASE_URL=postgresql://testuser:testpass@localhost:5432/test_db \
+          -e SESSION_SECRET=test_secret_key \
+          -p 3000:3000 \
+          ai-voice-receptionist:${{ github.sha }}
+        sleep 10
+        docker logs test-app
+        docker stop test-app
+        docker rm test-app

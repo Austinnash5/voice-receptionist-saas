@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leads - AI Voice Receptionist</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <a href="/">🤖 AI Voice Receptionist</a>
+      </div>
+      <ul class="nav-menu">
+        <li><a href="/tenant/dashboard">Dashboard</a></li>
+        <li><a href="/tenant/calls">Calls</a></li>
+        <li><a href="/tenant/leads" class="active">Leads</a></li>
+        <li><a href="/tenant/settings">Settings</a></li>
+        <li class="user-menu">
+          <span><%= user.email %></span>
+          <a href="/logout" class="btn btn-sm">Logout</a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <div class="container">
+      <h1>Leads</h1>
+
+      <div class="stats-mini">
+        <div class="stat"><strong><%= leadStats.new %></strong> New</div>
+        <div class="stat"><strong><%= leadStats.contacted %></strong> Contacted</div>
+        <div class="stat"><strong><%= leadStats.qualified %></strong> Qualified</div>
+        <div class="stat"><strong><%= leadStats.converted %></strong> Converted</div>
+      </div>
+
+      <div class="filters">
+        <a href="/tenant/leads" class="btn <%= !filterStatus ? 'btn-primary' : '' %>">All</a>
+        <a href="/tenant/leads?status=NEW" class="btn <%= filterStatus === 'NEW' ? 'btn-primary' : '' %>">New</a>
+        <a href="/tenant/leads?status=CONTACTED" class="btn <%= filterStatus === 'CONTACTED' ? 'btn-primary' : '' %>">Contacted</a>
+        <a href="/tenant/leads?status=QUALIFIED" class="btn <%= filterStatus === 'QUALIFIED' ? 'btn-primary' : '' %>">Qualified</a>
+        <a href="/tenant/leads?status=CONVERTED" class="btn <%= filterStatus === 'CONVERTED' ? 'btn-primary' : '' %>">Converted</a>
+      </div>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Reason</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% leads.forEach(lead => { %>
+            <tr>
+              <td><%= new Date(lead.createdAt).toLocaleDateString() %></td>
+              <td><%= lead.name || '-' %></td>
+              <td><%= lead.phone || '-' %></td>
+              <td><%= lead.email || '-' %></td>
+              <td><%= lead.reason ? lead.reason.substring(0, 50) + '...' : '-' %></td>
+              <td><span class="badge badge-<%= lead.status.toLowerCase() %>"><%= lead.status %></span></td>
+              <td>
+                <a href="/tenant/leads/<%= lead.id %>" class="btn btn-sm">View</a>
+              </td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; <%= new Date().getFullYear() %> AI Voice Receptionist. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>

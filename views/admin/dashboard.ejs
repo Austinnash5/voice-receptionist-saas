@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - AI Voice Receptionist</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <a href="/">🤖 AI Voice Receptionist</a>
+      </div>
+      <ul class="nav-menu">
+        <li><a href="/admin/dashboard" class="active">Dashboard</a></li>
+        <li><a href="/admin/tenants">Tenants</a></li>
+        <li><a href="/admin/numbers">Phone Numbers</a></li>
+        <li class="user-menu">
+          <span><%= user.email %></span>
+          <a href="/logout" class="btn btn-sm">Logout</a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <div class="container">
+      <h1>Super Admin Dashboard</h1>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value"><%= stats.totalTenants %></div>
+          <div class="stat-label">Total Tenants</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= stats.activeTenants %></div>
+          <div class="stat-label">Active Tenants</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= stats.totalCalls %></div>
+          <div class="stat-label">Total Calls</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value"><%= stats.totalLeads %></div>
+          <div class="stat-label">Total Leads</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <a href="/admin/tenants/new" class="btn btn-primary">Create New Tenant</a>
+        <a href="/admin/tenants" class="btn">Manage Tenants</a>
+        <a href="/admin/numbers" class="btn">Manage Phone Numbers</a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; <%= new Date().getFullYear() %> AI Voice Receptionist. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>

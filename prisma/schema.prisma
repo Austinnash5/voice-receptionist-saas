@@ -1,0 +1,426 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// MULTI-TENANT & USER MANAGEMENT
+// ============================================
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  status    TenantStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users               User[]
+  twilioNumbers       TwilioNumber[]
+  departments         Department[]
+  transferTargets     TransferTarget[]
+  receptionistConfig  ReceptionistConfig?
+  businessHours       BusinessHours[]
+  holidayHours        HolidayHours[]
+  knowledgeBase       KnowledgeBaseEntry[]
+  callSessions        CallSession[]
+  leads               Lead[]
+  auditLogs           AuditLog[]
+
+  @@index([slug])
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String?
+  lastName  String?
+  role      UserRole @default(TENANT_ADMIN)
+  tenantId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  auditLogs AuditLog[]
+
+  @@index([email])
+  @@index([tenantId])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  TENANT_ADMIN
+  TENANT_USER
+}
+
+// ============================================
+// TWILIO & PHONE CONFIGURATION
+// ============================================
+
+model TwilioNumber {
+  id          String   @id @default(uuid())
+  tenantId    String
+  phoneNumber String   @unique  // E.164 format: +15551234567
+  friendlyName String?
+  sid         String?  @unique  // Twilio Phone Number SID
+  status      PhoneStatus @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  callSessions CallSession[]
+
+  @@index([tenantId])
+  @@index([phoneNumber])
+}
+
+enum PhoneStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  transferTargets TransferTarget[]
+
+  @@index([tenantId])
+}
+
+model TransferTarget {
+  id           String   @id @default(uuid())
+  tenantId     String
+  departmentId String?
+  name         String
+  phoneNumber  String   // E.164 format
+  priority     Int      @default(1)  // Lower = higher priority
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([departmentId])
+}
+
+// ============================================
+// RECEPTIONIST CONFIGURATION
+// ============================================
+
+model ReceptionistConfig {
+  id                    String   @id @default(uuid())
+  tenantId              String   @unique
+  greetingMessage       String   @default("Thank you for calling. This call may be recorded for quality assurance. You are speaking with an automated assistant. How can I help you today?")
+  personality           String   @default("professional, friendly, and helpful")
+  voiceModel            String   @default("en-US-Neural2-F")  // For future TTS integration
+  transferPrompt        String   @default("Let me connect you with someone who can help. Please hold.")
+  leadCapturePrompt     String   @default("I'd be happy to have someone call you back. Can I get your name and phone number?")
+  fallbackMessage       String   @default("I'm sorry, I didn't understand that. Could you please repeat?")
+  endCallMessage        String   @default("Thank you for calling. Have a great day!")
+  maxSilentRetries      Int      @default(3)
+  maxTurns              Int      @default(20)
+  enableRecording       Boolean  @default(true)
+  enableLeadCapture     Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model BusinessHours {
+  id        String   @id @default(uuid())
+  tenantId  String
+  dayOfWeek Int      // 0=Sunday, 6=Saturday
+  openTime  String   // HH:MM format, e.g., "09:00"
+  closeTime String   // HH:MM format, e.g., "17:00"
+  isOpen    Boolean  @default(true)
+  timezone  String   @default("America/Los_Angeles")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, dayOfWeek])
+  @@index([tenantId])
+}
+
+model HolidayHours {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  date        DateTime @db.Date
+  isClosed    Boolean  @default(true)
+  openTime    String?
+  closeTime   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([date])
+}
+
+// ============================================
+// KNOWLEDGE BASE
+// ============================================
+
+model KnowledgeBaseEntry {
+  id          String   @id @default(uuid())
+  tenantId    String
+  category    String   // e.g., "hours", "pricing", "services"
+  question    String
+  answer      String   @db.Text
+  keywords    String[] // For search matching
+  isActive    Boolean  @default(true)
+  priority    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([category])
+}
+
+// ============================================
+// CALL MANAGEMENT
+// ============================================
+
+model CallSession {
+  id              String      @id @default(uuid())
+  tenantId        String
+  twilioNumberId  String
+  callSid         String      @unique
+  fromNumber      String
+  toNumber        String
+  status          CallStatus  @default(IN_PROGRESS)
+  state           CallState   @default(GREETING)
+  direction       String      @default("inbound")
+  startTime       DateTime    @default(now())
+  endTime         DateTime?
+  duration        Int?        // seconds
+  recordingUrl    String?
+  recordingSid    String?
+  transferAttempted Boolean   @default(false)
+  transferSuccess   Boolean   @default(false)
+  leadCaptured    Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Relations
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  twilioNumber TwilioNumber  @relation(fields: [twilioNumberId], references: [id], onDelete: Cascade)
+  events       CallEvent[]
+  recordings   Recording[]
+  transcript   Transcript?
+  summary      CallSummary?
+  lead         Lead?
+
+  @@index([tenantId])
+  @@index([callSid])
+  @@index([fromNumber])
+  @@index([startTime])
+}
+
+enum CallStatus {
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  BUSY
+  NO_ANSWER
+  CANCELED
+}
+
+enum CallState {
+  GREETING
+  INTENT
+  FAQ
+  TRANSFER_ATTEMPT
+  LEAD_CAPTURE
+  CONFIRMATION
+  WRAP_UP
+  ENDED
+}
+
+model CallEvent {
+  id            String   @id @default(uuid())
+  callSessionId String
+  eventType     String   // e.g., "state_change", "user_input", "ai_response"
+  state         CallState?
+  data          String   @db.Text // JSON
+  timestamp     DateTime @default(now())
+
+  // Relations
+  callSession CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+
+  @@index([callSessionId])
+  @@index([timestamp])
+}
+
+model Recording {
+  id            String   @id @default(uuid())
+  callSessionId String
+  recordingSid  String   @unique
+  url           String
+  duration      Int?     // seconds
+  createdAt     DateTime @default(now())
+
+  // Relations
+  callSession CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+
+  @@index([callSessionId])
+}
+
+model Transcript {
+  id            String   @id @default(uuid())
+  callSessionId String   @unique
+  fullText      String   @db.Text
+  turns         String   @db.Text // JSON array of {speaker, text, timestamp}
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  callSession CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+
+  @@index([callSessionId])
+}
+
+model CallSummary {
+  id            String   @id @default(uuid())
+  callSessionId String   @unique
+  intent        String?
+  summary       String   @db.Text
+  sentiment     String?  // positive, neutral, negative
+  actionItems   String[] 
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  callSession CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+
+  @@index([callSessionId])
+}
+
+// ============================================
+// LEAD MANAGEMENT
+// ============================================
+
+model Lead {
+  id              String     @id @default(uuid())
+  tenantId        String
+  callSessionId   String?    @unique
+  name            String?
+  phone           String?
+  email           String?
+  reason          String?    @db.Text
+  callbackPreference String?
+  status          LeadStatus @default(NEW)
+  source          String     @default("voice_call")
+  notes           String?    @db.Text
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Relations
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  callSession CallSession? @relation(fields: [callSessionId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  CLOSED
+}
+
+// ============================================
+// BACKGROUND JOBS
+// ============================================
+
+model Job {
+  id          String    @id @default(uuid())
+  type        String    // e.g., "send_email", "summarize_call"
+  payload     String    @db.Text // JSON
+  status      JobStatus @default(PENDING)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  error       String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  scheduledAt DateTime?
+  processedAt DateTime?
+
+  @@index([status])
+  @@index([type])
+  @@index([scheduledAt])
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  userId    String?
+  action    String
+  resource  String
+  resourceId String?
+  details   String?  @db.Text // JSON
+  ipAddress String?
+  timestamp DateTime @default(now())
+
+  // Relations
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([timestamp])
+}
