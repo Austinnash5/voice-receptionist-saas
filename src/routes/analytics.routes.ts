@@ -19,4 +19,9 @@ router.get('/top-faqs', analyticsController.getTopFAQs);
 router.get('/lead-conversion', analyticsController.getLeadConversion);
 router.get('/flow-performance', analyticsController.getFlowPerformance);
 
+// Comparison endpoints
+router.get('/comparison/metrics', analyticsController.getMetricsComparison);
+router.get('/comparison/week-over-week', analyticsController.getWeekOverWeek);
+router.get('/comparison/month-over-month', analyticsController.getMonthOverMonth);
+
 export default router;

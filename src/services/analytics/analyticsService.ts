@@ -304,6 +304,152 @@ export class AnalyticsService {
   }
 
   /**
+   * Calculate growth rate between two periods
+   */
+  private calculateGrowth(current: number, previous: number): number {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return Math.round(((current - previous) / previous) * 100);
+  }
+
+  /**
+   * Get metrics with comparison to previous period
+   */
+  async getMetricsWithComparison(tenantId: string, dateRange: DateRange) {
+    const duration = dateRange.endDate.getTime() - dateRange.startDate.getTime();
+    const previousPeriodEnd = new Date(dateRange.startDate.getTime() - 1);
+    const previousPeriodStart = new Date(previousPeriodEnd.getTime() - duration);
+
+    const [currentMetrics, previousMetrics] = await Promise.all([
+      this.getCallMetrics(tenantId, dateRange),
+      this.getCallMetrics(tenantId, {
+        startDate: previousPeriodStart,
+        endDate: previousPeriodEnd,
+      }),
+    ]);
+
+    return {
+      current: currentMetrics,
+      previous: previousMetrics,
+      growth: {
+        totalCalls: this.calculateGrowth(currentMetrics.totalCalls, previousMetrics.totalCalls),
+        completedCalls: this.calculateGrowth(currentMetrics.completedCalls, previousMetrics.completedCalls),
+        leadsGenerated: this.calculateGrowth(currentMetrics.leadsGenerated, previousMetrics.leadsGenerated),
+        averageDuration: this.calculateGrowth(currentMetrics.averageDuration, previousMetrics.averageDuration),
+        successfulTransfers: this.calculateGrowth(currentMetrics.successfulTransfers, previousMetrics.successfulTransfers),
+      },
+    };
+  }
+
+  /**
+   * Get call volume by time period (day, week, month)
+   */
+  async getCallVolumeByPeriod(
+    tenantId: string, 
+    dateRange: DateRange, 
+    groupBy: 'day' | 'week' | 'month' = 'day'
+  ) {
+    const calls = await prisma.callSession.findMany({
+      where: {
+        tenantId,
+        startTime: {
+          gte: dateRange.startDate,
+          lte: dateRange.endDate,
+        },
+      },
+      select: {
+        startTime: true,
+        status: true,
+        leadCaptured: true,
+      },
+      orderBy: {
+        startTime: 'asc',
+      },
+    });
+
+    const grouped = new Map<string, { calls: number; completed: number; leads: number }>();
+
+    calls.forEach(call => {
+      let key: string;
+      const date = new Date(call.startTime);
+
+      if (groupBy === 'day') {
+        key = date.toISOString().split('T')[0]; // YYYY-MM-DD
+      } else if (groupBy === 'week') {
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay());
+        key = weekStart.toISOString().split('T')[0];
+      } else {
+        key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      }
+
+      if (!grouped.has(key)) {
+        grouped.set(key, { calls: 0, completed: 0, leads: 0 });
+      }
+
+      const stats = grouped.get(key)!;
+      stats.calls++;
+      if (call.status === CallStatus.COMPLETED) stats.completed++;
+      if (call.leadCaptured) stats.leads++;
+    });
+
+    return Array.from(grouped.entries())
+      .map(([period, stats]) => ({ period, ...stats }))
+      .sort((a, b) => a.period.localeCompare(b.period));
+  }
+
+  /**
+   * Get week-over-week comparison
+   */
+  async getWeekOverWeekComparison(tenantId: string, weeks: number = 8) {
+    const now = new Date();
+    const startDate = new Date(now.getTime() - weeks * 7 * 24 * 60 * 60 * 1000);
+
+    const data = await this.getCallVolumeByPeriod(
+      tenantId,
+      { startDate, endDate: now },
+      'week'
+    );
+
+    // Calculate week-over-week growth
+    const withGrowth = data.map((week, index) => {
+      if (index === 0) {
+        return { ...week, growth: 0 };
+      }
+      const previous = data[index - 1];
+      const growth = this.calculateGrowth(week.calls, previous.calls);
+      return { ...week, growth };
+    });
+
+    return withGrowth;
+  }
+
+  /**
+   * Get month-over-month comparison
+   */
+  async getMonthOverMonthComparison(tenantId: string, months: number = 6) {
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth() - months, 1);
+
+    const data = await this.getCallVolumeByPeriod(
+      tenantId,
+      { startDate, endDate: now },
+      'month'
+    );
+
+    // Calculate month-over-month growth
+    const withGrowth = data.map((month, index) => {
+      if (index === 0) {
+        return { ...month, growth: 0 };
+      }
+      const previous = data[index - 1];
+      const growth = this.calculateGrowth(month.calls, previous.calls);
+      return { ...month, growth };
+    });
+
+    return withGrowth;
+  }
+
+  /**
    * Get comprehensive analytics dashboard data
    */
   async getDashboardAnalytics(tenantId: string, dateRange?: DateRange) {
@@ -330,6 +476,24 @@ export class AnalyticsService {
       topFAQs,
       leadConversion,
       flowPerformance,
+    };
+  }
+
+  /**
+   * Get comprehensive analytics with comparisons
+   */
+  async getDashboardAnalyticsWithComparison(tenantId: string, dateRange: DateRange) {
+    const [
+      dashboardData,
+      metricsComparison,
+    ] = await Promise.all([
+      this.getDashboardAnalytics(tenantId, dateRange),
+      this.getMetricsWithComparison(tenantId, dateRange),
+    ]);
+
+    return {
+      ...dashboardData,
+      comparison: metricsComparison,
     };
   }
 }

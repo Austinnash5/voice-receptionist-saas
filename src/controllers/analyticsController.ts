@@ -43,8 +43,14 @@ export async function getAnalytics(req: Request, res: Response) {
   try {
     const { tenantId } = req.params;
     const dateRange = parseDateRange(req);
+    const includeComparison = req.query.comparison === 'true';
 
-    const analytics = await analyticsService.getDashboardAnalytics(tenantId, dateRange);
+    let analytics;
+    if (includeComparison) {
+      analytics = await analyticsService.getDashboardAnalyticsWithComparison(tenantId, dateRange);
+    } else {
+      analytics = await analyticsService.getDashboardAnalytics(tenantId, dateRange);
+    }
 
     res.json({
       success: true,
@@ -198,6 +204,75 @@ export async function getFlowPerformance(req: Request, res: Response) {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to fetch flow performance' 
+    });
+  }
+}
+
+/**
+ * Get week-over-week comparison
+ */
+export async function getWeekOverWeek(req: Request, res: Response) {
+  try {
+    const { tenantId } = req.params;
+    const weeks = req.query.weeks ? parseInt(req.query.weeks as string) : 8;
+
+    const data = await analyticsService.getWeekOverWeekComparison(tenantId, weeks);
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    console.error('Get week-over-week error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch week-over-week comparison' 
+    });
+  }
+}
+
+/**
+ * Get month-over-month comparison
+ */
+export async function getMonthOverMonth(req: Request, res: Response) {
+  try {
+    const { tenantId } = req.params;
+    const months = req.query.months ? parseInt(req.query.months as string) : 6;
+
+    const data = await analyticsService.getMonthOverMonthComparison(tenantId, months);
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    console.error('Get month-over-month error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch month-over-month comparison' 
+    });
+  }
+}
+
+/**
+ * Get metrics with comparison
+ */
+export async function getMetricsComparison(req: Request, res: Response) {
+  try {
+    const { tenantId } = req.params;
+    const dateRange = parseDateRange(req);
+
+    const data = await analyticsService.getMetricsWithComparison(tenantId, dateRange);
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    console.error('Get metrics comparison error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch metrics comparison' 
     });
   }
 }

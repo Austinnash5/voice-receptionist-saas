@@ -75,6 +75,27 @@
       margin: 0.5rem 0;
     }
 
+    .metric-growth {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+
+    .metric-growth.positive {
+      color: #28a745;
+    }
+
+    .metric-growth.negative {
+      color: #dc3545;
+    }
+
+    .metric-growth.neutral {
+      color: #6a737d;
+    }
+
     .metric-subtitle {
       font-size: 0.875rem;
       color: #6a737d;
@@ -187,10 +208,18 @@
           <h1>📊 Analytics</h1>
           <p class="subtitle"><%= tenant.name %></p>
         </div>
-        <div class="date-range-selector">
-          <button class="btn" onclick="loadAnalytics(7)">7 Days</button>
-          <button class="btn active" onclick="loadAnalytics(30)">30 Days</button>
-          <button class="btn" onclick="loadAnalytics(90)">90 Days</button>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <div class="date-range-selector">
+            <button class="btn period-btn active" data-period="7" onclick="changePeriod(7)">7 Days</button>
+            <button class="btn period-btn" data-period="30" onclick="changePeriod(30)">30 Days</button>
+            <button class="btn period-btn" data-period="90" onclick="changePeriod(90)">90 Days</button>
+          </div>
+          <div class="date-range-selector">
+            <button class="btn view-btn active" data-view="overview" onclick="changeView('overview')">Overview</button>
+            <button class="btn view-btn" data-view="daily" onclick="changeView('daily')">Day-by-Day</button>
+            <button class="btn view-btn" data-view="weekly" onclick="changeView('weekly')">Week-by-Week</button>
+            <button class="btn view-btn" data-view="monthly" onclick="changeView('monthly')">Month-by-Month</button>
+          </div>
         </div>
       </div>
 
@@ -240,6 +269,16 @@
           </div>
         </div>
 
+        <!-- Comparison View (hidden by default) -->
+        <div id="comparisonView" style="display: none;">
+          <div class="card" style="margin-bottom: 2rem;">
+            <h3 id="comparisonTitle">📈 Growth Analysis</h3>
+            <div class="chart-container" style="height: 400px;">
+              <canvas id="comparisonChart"></canvas>
+            </div>
+          </div>
+        </div>
+
         <!-- Top FAQs Table -->
         <div class="card">
           <h3>❓ Top FAQ Questions</h3>
@@ -279,36 +318,126 @@
 
   <script>
     const tenantId = '<%= tenant.id %>';
-    let currentPeriod = 30;
+    let currentPeriod = 7;
+    let currentView = 'overview';
     let charts = {};
 
     // Load analytics on page load
     document.addEventListener('DOMContentLoaded', () => {
-      loadAnalytics(30);
+      loadAnalytics();
     });
 
-    async function loadAnalytics(period) {
+    function changePeriod(period) {
       currentPeriod = period;
-      
-      // Update active button
-      document.querySelectorAll('.date-range-selector .btn').forEach(btn => {
-        btn.classList.remove('active');
+      document.querySelectorAll('.period-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.period) === period);
       });
-      event?.target?.classList.add('active');
+      loadAnalytics();
+    }
 
+    function changeView(view) {
+      currentView = view;
+      document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === view);
+      });
+      loadAnalytics();
+    }
+
+    async function loadAnalytics() {
       // Show loading
       document.getElementById('loadingState').style.display = 'flex';
       document.getElementById('analyticsContent').style.display = 'none';
 
       try {
-        const response = await fetch(`/api/tenants/${tenantId}/analytics?period=${period}`);
-        const result = await response.json();
+        if (currentView === 'overview') {
+          await loadOverview();
+        } else if (currentView === 'daily') {
+          await loadDailyComparison();
+        } else if (currentView === 'weekly') {
+          await loadWeeklyComparison();
+        } else if (currentView === 'monthly') {
+          await loadMonthlyComparison();
+        }
 
-        if (result.success) {
-          renderAnalytics(result.data);
-          document.getElementById('loadingState').style.display = 'none';
-          document.getElementById('analyticsContent').style.display = 'block';
-        } else {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('analyticsContent').style.display = 'block';
+      } catch (error) {
+        console.error('Analytics error:', error);
+        alert('Failed to load analytics: ' + error.message);
+      }
+    }
+
+    async function loadOverview() {
+      const response = await fetch(`/api/tenants/${tenantId}/analytics?period=${currentPeriod}&comparison=true`);
+      const result = await response.json();
+
+      if (result.success) {
+        document.querySelector('.charts-grid').style.display = 'grid';
+        document.getElementById('comparisonView').style.display = 'none';
+        
+        renderAnalytics(result.data);
+      } else {
+        throw new Error(result.error || 'Failed to load analytics');
+      }
+    }
+
+    async function loadDailyComparison() {
+      const response = await fetch(`/api/tenants/${tenantId}/analytics?period=${currentPeriod}&comparison=true`);
+      const result = await response.json();
+
+      if (result.success) {
+        document.querySelector('.charts-grid').style.display = 'none';
+        document.getElementById('comparisonView').style.display = 'block';
+        document.getElementById('comparisonTitle').textContent = '📅 Day-by-Day Analysis';
+        
+        renderMetrics(result.data.metrics, result.data.leadConversion);
+        renderTopFAQs(result.data.topFAQs);
+        renderFlowPerformance(result.data.flowPerformance);
+        renderDailyComparisonChart(result.data.callVolume);
+      }
+    }
+
+    async function loadWeeklyComparison() {
+      const [analyticsResponse, weeklyResponse] = await Promise.all([
+        fetch(`/api/tenants/${tenantId}/analytics?period=${currentPeriod}&comparison=true`),
+        fetch(`/api/tenants/${tenantId}/analytics/comparison/week-over-week?weeks=8`),
+      ]);
+
+      const analyticsResult = await analyticsResponse.json();
+      const weeklyResult = await weeklyResponse.json();
+
+      if (analyticsResult.success && weeklyResult.success) {
+        document.querySelector('.charts-grid').style.display = 'none';
+        document.getElementById('comparisonView').style.display = 'block';
+        document.getElementById('comparisonTitle').textContent = '📊 Week-over-Week Growth';
+        
+        renderMetrics(analyticsResult.data.metrics, analyticsResult.data.leadConversion);
+        renderTopFAQs(analyticsResult.data.topFAQs);
+        renderFlowPerformance(analyticsResult.data.flowPerformance);
+        renderWeeklyComparisonChart(weeklyResult.data);
+      }
+    }
+
+    async function loadMonthlyComparison() {
+      const [analyticsResponse, monthlyResponse] = await Promise.all([
+        fetch(`/api/tenants/${tenantId}/analytics?period=${currentPeriod}&comparison=true`),
+        fetch(`/api/tenants/${tenantId}/analytics/comparison/month-over-month?months=6`),
+      ]);
+
+      const analyticsResult = await analyticsResponse.json();
+      const monthlyResult = await monthlyResponse.json();
+
+      if (analyticsResult.success && monthlyResult.success) {
+        document.querySelector('.charts-grid').style.display = 'none';
+        document.getElementById('comparisonView').style.display = 'block';
+        document.getElementById('comparisonTitle').textContent = '📈 Month-over-Month Growth';
+        
+        renderMetrics(analyticsResult.data.metrics, analyticsResult.data.leadConversion);
+        renderTopFAQs(analyticsResult.data.topFAQs);
+        renderFlowPerformance(analyticsResult.data.flowPerformance);
+        renderMonthlyComparisonChart(monthlyResult.data);
+      }
+    }
           throw new Error(result.error || 'Failed to load analytics');
         }
       } catch (error) {
@@ -318,7 +447,8 @@
     }
 
     function renderAnalytics(data) {
-      renderMetrics(data.metrics, data.leadConversion);
+      const comparison = data.comparison;
+      renderMetrics(data.metrics, data.leadConversion, comparison);
       renderCallVolumeChart(data.callVolume);
       renderPeakHoursChart(data.peakHours);
       renderCallStatusChart(data.metrics);
@@ -328,26 +458,36 @@
       renderFlowPerformance(data.flowPerformance);
     }
 
-    function renderMetrics(metrics, leadConversion) {
+    function renderMetrics(metrics, leadConversion, comparison = null) {
       const metricsGrid = document.getElementById('metricsGrid');
       
+      function formatGrowth(growth) {
+        if (!growth && growth !== 0) return '';
+        const className = growth > 0 ? 'positive' : growth < 0 ? 'negative' : 'neutral';
+        const arrow = growth > 0 ? '↑' : growth < 0 ? '↓' : '→';
+        return `<div class="metric-growth ${className}">${arrow} ${Math.abs(growth)}% vs previous period</div>`;
+      }
+
       const metricCards = [
         {
           label: 'Total Calls',
           value: metrics.totalCalls.toLocaleString(),
           subtitle: `${metrics.completedCalls} completed`,
+          growth: comparison?.growth?.totalCalls,
           class: 'info',
         },
         {
           label: 'Leads Generated',
           value: metrics.leadsGenerated.toLocaleString(),
           subtitle: `${leadConversion.conversionRate}% conversion rate`,
+          growth: comparison?.growth?.leadsGenerated,
           class: 'success',
         },
         {
           label: 'Total Minutes',
           value: metrics.totalMinutes.toLocaleString(),
           subtitle: `Avg ${metrics.averageDuration}s per call`,
+          growth: comparison?.growth?.averageDuration,
           class: 'info',
         },
         {
@@ -356,6 +496,7 @@
             ? Math.round((metrics.successfulTransfers / metrics.transferAttempts) * 100) + '%'
             : 'N/A',
           subtitle: `${metrics.successfulTransfers} of ${metrics.transferAttempts} attempts`,
+          growth: comparison?.growth?.successfulTransfers,
           class: metrics.transferAttempts > 0 && (metrics.successfulTransfers / metrics.transferAttempts) > 0.7 ? 'success' : 'warning',
         },
       ];
@@ -365,6 +506,7 @@
           <div class="metric-label">${metric.label}</div>
           <div class="metric-value">${metric.value}</div>
           <div class="metric-subtitle">${metric.subtitle}</div>
+          ${formatGrowth(metric.growth)}
         </div>
       `).join('');
     }
@@ -619,6 +761,220 @@
           <td><strong>${flow.count}</strong></td>
         </tr>
       `).join('');
+    }
+
+    function renderDailyComparisonChart(data) {
+      const ctx = document.getElementById('comparisonChart');
+      if (charts.comparison) {
+        charts.comparison.destroy();
+      }
+
+      const labels = data.daily.map(d => {
+        const date = new Date(d.date);
+        return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      });
+
+      charts.comparison = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Total Calls',
+              data: data.daily.map(d => d.totalCalls),
+              borderColor: 'rgba(54, 162, 235, 1)',
+              backgroundColor: 'rgba(54, 162, 235, 0.1)',
+              tension: 0.4,
+            },
+            {
+              label: 'Completed Calls',
+              data: data.daily.map(d => d.completedCalls),
+              borderColor: 'rgba(40, 167, 69, 1)',
+              backgroundColor: 'rgba(40, 167, 69, 0.1)',
+              tension: 0.4,
+            },
+            {
+              label: 'Leads Generated',
+              data: data.daily.map(d => d.leadsGenerated),
+              borderColor: 'rgba(255, 193, 7, 1)',
+              backgroundColor: 'rgba(255, 193, 7, 0.1)',
+              tension: 0.4,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function renderWeeklyComparisonChart(data) {
+      const ctx = document.getElementById('comparisonChart');
+      if (charts.comparison) {
+        charts.comparison.destroy();
+      }
+
+      const labels = data.map(w => {
+        const startDate = new Date(w.weekStart);
+        return `Week of ${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      });
+
+      charts.comparison = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Total Calls',
+              data: data.map(w => w.totalCalls),
+              backgroundColor: 'rgba(54, 162, 235, 0.7)',
+              borderColor: 'rgba(54, 162, 235, 1)',
+              borderWidth: 1,
+            },
+            {
+              label: 'Completed Calls',
+              data: data.map(w => w.completedCalls),
+              backgroundColor: 'rgba(40, 167, 69, 0.7)',
+              borderColor: 'rgba(40, 167, 69, 1)',
+              borderWidth: 1,
+            },
+            {
+              label: 'Leads Generated',
+              data: data.map(w => w.leadsGenerated),
+              backgroundColor: 'rgba(255, 193, 7, 0.7)',
+              borderColor: 'rgba(255, 193, 7, 1)',
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              callbacks: {
+                afterLabel: function(context) {
+                  const weekIndex = context.dataIndex;
+                  const weekData = data[weekIndex];
+                  if (weekData.growth !== undefined && weekData.growth !== null) {
+                    const sign = weekData.growth > 0 ? '+' : '';
+                    return `Growth: ${sign}${weekData.growth.toFixed(1)}%`;
+                  }
+                  return '';
+                },
+              },
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function renderMonthlyComparisonChart(data) {
+      const ctx = document.getElementById('comparisonChart');
+      if (charts.comparison) {
+        charts.comparison.destroy();
+      }
+
+      const labels = data.map(m => {
+        const date = new Date(m.monthStart);
+        return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      });
+
+      charts.comparison = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Total Calls',
+              data: data.map(m => m.totalCalls),
+              borderColor: 'rgba(54, 162, 235, 1)',
+              backgroundColor: 'rgba(54, 162, 235, 0.1)',
+              tension: 0.4,
+              fill: true,
+            },
+            {
+              label: 'Completed Calls',
+              data: data.map(m => m.completedCalls),
+              borderColor: 'rgba(40, 167, 69, 1)',
+              backgroundColor: 'rgba(40, 167, 69, 0.1)',
+              tension: 0.4,
+              fill: true,
+            },
+            {
+              label: 'Leads Generated',
+              data: data.map(m => m.leadsGenerated),
+              borderColor: 'rgba(255, 193, 7, 1)',
+              backgroundColor: 'rgba(255, 193, 7, 0.1)',
+              tension: 0.4,
+              fill: true,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              callbacks: {
+                afterLabel: function(context) {
+                  const monthIndex = context.dataIndex;
+                  const monthData = data[monthIndex];
+                  if (monthData.growth !== undefined && monthData.growth !== null) {
+                    const sign = monthData.growth > 0 ? '+' : '';
+                    return `Growth: ${sign}${monthData.growth.toFixed(1)}%`;
+                  }
+                  return '';
+                },
+              },
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0,
+              },
+            },
+          },
+        },
+      });
     }
   </script>
 </body>
