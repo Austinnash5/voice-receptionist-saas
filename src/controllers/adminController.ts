@@ -88,28 +88,43 @@ export async function createTenant(req: Request, res: Response) {
       });
     }
 
-    // Create tenant with default config
-    const tenant = await prisma.tenant.create({
-      data: {
-        name,
-        slug,
-        status: 'ACTIVE',
-        receptionistConfig: {
-          create: {},
-        },
-      },
+    // Check if email already exists
+    const existingUser = await prisma.user.findUnique({ 
+      where: { email: adminEmail.toLowerCase() } 
     });
+    if (existingUser) {
+      return res.render('admin/create-tenant', {
+        user: req.user,
+        error: 'Email already exists. Please use a different email.',
+      });
+    }
 
-    // Create admin user
+    // Hash password first to catch any errors before creating tenant
     const hashedPassword = await hashPassword(adminPassword);
-    
-    await prisma.user.create({
-      data: {
-        email: adminEmail.toLowerCase(),
-        password: hashedPassword,
-        role: 'TENANT_ADMIN',
-        tenantId: tenant.id,
-      },
+
+    // Create tenant and user in a transaction
+    const tenant = await prisma.$transaction(async (tx) => {
+      const newTenant = await tx.tenant.create({
+        data: {
+          name,
+          slug,
+          status: 'ACTIVE',
+          receptionistConfig: {
+            create: {},
+          },
+        },
+      });
+
+      await tx.user.create({
+        data: {
+          email: adminEmail.toLowerCase(),
+          password: hashedPassword,
+          role: 'TENANT_ADMIN',
+          tenantId: newTenant.id,
+        },
+      });
+
+      return newTenant;
     });
 
     console.log(`✅ Created tenant: ${tenant.name} (${tenant.slug})`);

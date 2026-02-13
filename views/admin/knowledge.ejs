@@ -7,8 +7,24 @@
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-  <%- include('../layout', { user }) %>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <a href="/">🤖 AI Voice Receptionist</a>
+      </div>
+      <ul class="nav-menu">
+        <li><a href="/admin/dashboard">Dashboard</a></li>
+        <li><a href="/admin/tenants">Tenants</a></li>
+        <li><a href="/admin/numbers">Phone Numbers</a></li>
+        <li class="user-menu">
+          <span><%= user.email %></span>
+          <a href="/logout" class="btn btn-sm">Logout</a>
+        </li>
+      </ul>
+    </div>
+  </nav>
   
+  <main class="main-content">
   <div class="container">
     <div class="page-header">
       <div>
@@ -251,6 +267,12 @@
     loadEntries();
   </script>
 
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; <%= new Date().getFullYear() %> AI Voice Receptionist. All rights reserved.</p>
+    </div>
+  </footer>
+
   <style>
     .kb-category {
       margin-bottom: 2rem;
@@ -331,5 +353,6 @@
       font-size: 0.875rem;
     }
   </style>
+</main>
 </body>
 </html>
