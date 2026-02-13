@@ -6,6 +6,7 @@ import adminRoutes from './admin.routes';
 import tenantRoutes from './tenant.routes';
 import knowledgeRoutes from './knowledge.routes';
 import flowRoutes from './flow.routes';
+import analyticsRoutes from './analytics.routes';
 
 const router = express.Router();
 
@@ -139,5 +140,6 @@ router.use('/admin', adminRoutes);
 router.use('/tenant', tenantRoutes);
 router.use('/api', requireAuth, knowledgeRoutes);
 router.use('/api', flowRoutes);
+router.use('/api/tenants/:tenantId/analytics', requireAuth, analyticsRoutes);
 
 export default router;

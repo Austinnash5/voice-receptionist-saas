@@ -11,6 +11,7 @@ import {
   updateReceptionistConfig,
   addKnowledgeEntry,
   addTransferTarget,
+  getAnalytics,
 } from '../controllers/tenantController';
 
 const router = express.Router();
@@ -31,6 +32,9 @@ router.get('/calls/:id', getCallDetail);
 router.get('/leads', getLeads);
 router.get('/leads/:id', getLeadDetail);
 router.post('/leads/:id', updateLead);
+
+// Analytics
+router.get('/analytics', getAnalytics);
 
 // Settings
 router.get('/settings', getSettings);

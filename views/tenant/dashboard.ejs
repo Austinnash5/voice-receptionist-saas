@@ -16,6 +16,8 @@
         <li><a href="/tenant/dashboard" class="active">Dashboard</a></li>
         <li><a href="/tenant/calls">Calls</a></li>
         <li><a href="/tenant/leads">Leads</a></li>
+        <li><a href="/admin/tenants/<%= tenant.id %>/flows">Flows</a></li>
+        <li><a href="/tenant/analytics">Analytics</a></li>
         <li><a href="/tenant/settings">Settings</a></li>
         <li class="user-menu">
           <span><%= user.email %></span>
@@ -54,6 +56,12 @@
           <div class="stat-value"><%= Math.round(stats.avgCallDuration / 60) %> min</div>
           <div class="stat-label">Avg Call Duration</div>
         </div>
+      </div>
+
+      <div class="card" style="margin: 2rem 0; padding: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+        <h3 style="margin: 0 0 0.5rem 0; color: white;">📊 Advanced Analytics Available</h3>
+        <p style="margin: 0 0 1rem 0; opacity: 0.9;">Get detailed insights on call volume, peak hours, FAQ trends, and more.</p>
+        <a href="/tenant/analytics" class="btn" style="background: white; color: #667eea; font-weight: 600;">View Full Analytics Dashboard →</a>
       </div>
 
       <div class="section">

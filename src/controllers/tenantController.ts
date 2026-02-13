@@ -445,3 +445,29 @@ export async function addTransferTarget(req: Request, res: Response) {
     res.status(500).send('Error adding transfer target');
   }
 }
+
+/**
+ * Analytics Page
+ */
+export async function getAnalytics(req: Request, res: Response) {
+  try {
+    const user = req.user!;
+    const tenantId = user.tenantId!;
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      return res.status(404).send('Tenant not found');
+    }
+
+    res.render('tenant/analytics', {
+      user,
+      tenant,
+    });
+  } catch (error) {
+    console.error('Analytics page error:', error);
+    res.status(500).send('Error loading analytics');
+  }
+}
