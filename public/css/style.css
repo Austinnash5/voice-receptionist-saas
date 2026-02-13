@@ -466,3 +466,45 @@ code {
     width: 100%;
   }
 }
+
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-info {
+  background: #17a2b8;
+  color: white;
+}
+
+.btn-info:hover {
+  background: #138496;
+}
+
+/* Page Header */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e3e6ea;
+}
+
+.subtitle {
+  color: #6c757d;
+  font-size: 1rem;
+  margin-top: 0.25rem;
+}
+
+/* Text Utilities */
+.text-muted {
+  color: #6c757d;
+}
+
+.text-danger {
+  color: #dc3545;
+}
+

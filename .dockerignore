@@ -1,8 +1,9 @@
-# Dependencies
+# Dependencies (but keep package-lock.json for reproducible builds)
 node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+!package-lock.json
 
 # Build outputs
 dist

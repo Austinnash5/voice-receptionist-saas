@@ -275,3 +275,78 @@ export async function unassignNumber(req: Request, res: Response) {
     res.status(500).send('Error unassigning number');
   }
 }
+
+/**
+ * FAQ Management Page
+ */
+export async function getFAQsPage(req: Request, res: Response) {
+  try {
+    const { tenantId } = req.params;
+    
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      return res.status(404).send('Tenant not found');
+    }
+
+    res.render('admin/faqs', {
+      user: req.user,
+      tenant,
+    });
+  } catch (error) {
+    console.error('FAQ page error:', error);
+    res.status(500).send('Error loading FAQ page');
+  }
+}
+
+/**
+ * Knowledge Base Management Page
+ */
+export async function getKnowledgePage(req: Request, res: Response) {
+  try {
+    const { tenantId } = req.params;
+    
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      return res.status(404).send('Tenant not found');
+    }
+
+    res.render('admin/knowledge', {
+      user: req.user,
+      tenant,
+    });
+  } catch (error) {
+    console.error('Knowledge page error:', error);
+    res.status(500).send('Error loading knowledge page');
+  }
+}
+
+/**
+ * Call Flow Management Page
+ */
+export async function getFlowsPage(req: Request, res: Response) {
+  try {
+    const { tenantId } = req.params;
+    
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      return res.status(404).send('Tenant not found');
+    }
+
+    res.render('admin/flows', {
+      user: req.user,
+      tenant,
+    });
+  } catch (error) {
+    console.error('Flows page error:', error);
+    res.status(500).send('Error loading flows page');
+  }
+}

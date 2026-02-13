@@ -11,6 +11,9 @@ import {
   getNumbers,
   assignNumber,
   unassignNumber,
+  getFAQsPage,
+  getKnowledgePage,
+  getFlowsPage,
 } from '../controllers/adminController';
 
 const router = express.Router();
@@ -35,5 +38,10 @@ router.post('/tenants/:id/delete', deleteTenant);
 router.get('/numbers', getNumbers);
 router.post('/numbers', assignNumber);
 router.post('/numbers/:id/delete', unassignNumber);
+
+// Knowledge Management - FAQ, Knowledge Base, Call Flows
+router.get('/tenants/:tenantId/faqs', getFAQsPage);
+router.get('/tenants/:tenantId/knowledge', getKnowledgePage);
+router.get('/tenants/:tenantId/flows', getFlowsPage);
 
 export default router;

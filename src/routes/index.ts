@@ -3,6 +3,7 @@ import { requireAuth, loginUser } from '../middleware/auth';
 import twilioRoutes from './twilio.routes';
 import adminRoutes from './admin.routes';
 import tenantRoutes from './tenant.routes';
+import knowledgeRoutes from './knowledge.routes';
 
 const router = express.Router();
 
@@ -70,5 +71,6 @@ router.use('/twilio', twilioRoutes);
 // Protected routes
 router.use('/admin', adminRoutes);
 router.use('/tenant', tenantRoutes);
+router.use('/api', requireAuth, knowledgeRoutes);
 
 export default router;

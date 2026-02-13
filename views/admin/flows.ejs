@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Call Flow Management - <%= tenant.name %></title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('../layout', { user }) %>
+  
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <h1>Call Flow Management</h1>
+        <p class="subtitle">Configure call flows for <%= tenant.name %></p>
+      </div>
+      <div>
+        <a href="/admin/tenants" class="btn btn-secondary">← Back to Tenants</a>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <h3>📞 Call Flow Types</h3>
+      <ul>
+        <li><strong>MAIN_MENU:</strong> Primary IVR menu (press 1 for sales, 2 for support)</li>
+        <li><strong>AFTER_HOURS:</strong> Handling calls outside business hours</li>
+        <li><strong>VOICEMAIL:</strong> Voicemail collection and processing</li>
+        <li><strong>SALES:</strong> Sales-specific conversation flow</li>
+        <li><strong>SUPPORT:</strong> Support-specific conversation flow</li>
+        <li><strong>CUSTOM:</strong> Custom flows for specific use cases</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Create Call Flow</h2>
+      </div>
+      <div class="card-body">
+        <form id="flowForm">
+          <div class="form-group">
+            <label for="name">Flow Name *</label>
+            <input type="text" id="name" name="name" class="form-control" required placeholder="e.g., Main Business Hours Menu">
+          </div>
+
+          <div class="form-group">
+            <label for="flowType">Flow Type *</label>
+            <select id="flowType" name="flowType" class="form-control" required>
+              <option value="">Select flow type...</option>
+              <option value="MAIN_MENU">Main Menu (IVR)</option>
+              <option value="AFTER_HOURS">After Hours</option>
+              <option value="VOICEMAIL">Voicemail</option>
+              <option value="SALES">Sales Flow</option>
+              <option value="SUPPORT">Support Flow</option>
+              <option value="CUSTOM">Custom Flow</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="priority">Priority</label>
+            <select id="priority" name="priority" class="form-control">
+              <option value="0">Normal (0)</option>
+              <option value="1">High (1)</option>
+              <option value="2">Very High (2)</option>
+              <option value="3">Critical (3)</option>
+            </select>
+            <small class="form-text">Higher priority flows are checked first</small>
+          </div>
+
+          <div class="form-group">
+            <label for="configTemplate">Configuration Template</label>
+            <select id="configTemplate" class="form-control" onchange="loadTemplate()">
+              <option value="">Select a template...</option>
+              <option value="ivr">IVR Menu Configuration</option>
+              <option value="voicemail">Voicemail Configuration</option>
+              <option value="routing">Call Routing Configuration</option>
+              <option value="custom">Custom (Empty JSON)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="config">Flow Configuration (JSON) *</label>
+            <textarea id="config" name="config" class="form-control" rows="10" required placeholder="{}">{}</textarea>
+            <small class="form-text">Configuration in JSON format. Use template above for examples.</small>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Create Flow</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Existing Call Flows</h2>
+      </div>
+      <div class="card-body">
+        <div id="flowList">
+          <p class="text-muted">Loading call flows...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tenantId = '<%= tenant.id %>';
+    let flows = [];
+
+    const templates = {
+      ivr: {
+        greeting: "Thank you for calling. Press 1 for Sales, Press 2 for Support, or stay on the line to speak with someone.",
+        options: [
+          { digit: "1", action: "transfer", target: "+1234567890", description: "Sales" },
+          { digit: "2", action: "transfer", target: "+1234567891", description: "Support" },
+          { digit: "0", action: "operator", description: "Operator" }
+        ],
+        defaultAction: "voicemail",
+        timeout: 10
+      },
+      voicemail: {
+        greeting: "Please leave a message after the beep. We'll get back to you as soon as possible.",
+        maxDuration: 120,
+        transcribe: true,
+        notifyEmail: true,
+        followUpAction: "create_lead"
+      },
+      routing: {
+        conditions: [
+          { type: "time", operator: "between", value: "09:00-17:00", action: "available" },
+          { type: "time", operator: "outside", value: "09:00-17:00", action: "voicemail" }
+        ],
+        defaultRoute: "voicemail"
+      },
+      custom: {}
+    };
+
+    function loadTemplate() {
+      const template = document.getElementById('configTemplate').value;
+      if (template && templates[template]) {
+        document.getElementById('config').value = JSON.stringify(templates[template], null, 2);
+      }
+    }
+
+    // Load flows
+    async function loadFlows() {
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/flows`);
+        const data = await res.json();
+        
+        if (data.success) {
+          flows = data.flows;
+          renderFlows();
+        } else {
+          document.getElementById('flowList').innerHTML = `<p class="text-danger">${data.error}</p>`;
+        }
+      } catch (error) {
+        document.getElementById('flowList').innerHTML = `<p class="text-danger">Failed to load call flows</p>`;
+      }
+    }
+
+    // Render flows
+    function renderFlows() {
+      const list = document.getElementById('flowList');
+      
+      if (flows.length === 0) {
+        list.innerHTML = '<p class="text-muted">No call flows yet. Create one above to get started.</p>';
+        return;
+      }
+
+      // Group by flow type
+      const grouped = {};
+      flows.forEach(flow => {
+        const type = flow.flowType;
+        if (!grouped[type]) grouped[type] = [];
+        grouped[type].push(flow);
+      });
+
+      let html = '';
+      Object.keys(grouped).sort().forEach(flowType => {
+        html += `<div class="flow-category">
+          <h3>${flowType.replace(/_/g, ' ')}</h3>
+          <div class="flow-items">`;
+        
+        // Sort by priority
+        grouped[flowType].sort((a, b) => b.priority - a.priority).forEach(flow => {
+          html += `
+            <div class="flow-item" data-id="${flow.id}">
+              <div class="flow-content">
+                <div class="flow-header">
+                  <strong>${escapeHtml(flow.name)}</strong>
+                  ${flow.priority > 0 ? `<span class="badge badge-priority">Priority: ${flow.priority}</span>` : ''}
+                  <span class="badge ${flow.isActive ? 'badge-success' : 'badge-disabled'}">
+                    ${flow.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <div class="flow-config">
+                  <details>
+                    <summary>View Configuration</summary>
+                    <pre>${escapeHtml(JSON.stringify(flow.config, null, 2))}</pre>
+                  </details>
+                </div>
+              </div>
+              <div class="flow-actions">
+                <button onclick="editFlow('${flow.id}')" class="btn btn-sm btn-secondary">Edit</button>
+                <button onclick="toggleFlow('${flow.id}', ${!flow.isActive})" class="btn btn-sm ${flow.isActive ? 'btn-warning' : 'btn-success'}">
+                  ${flow.isActive ? 'Disable' : 'Enable'}
+                </button>
+                <button onclick="deleteFlow('${flow.id}')" class="btn btn-sm btn-danger">Delete</button>
+              </div>
+            </div>`;
+        });
+
+        html += `</div></div>`;
+      });
+
+      list.innerHTML = html;
+    }
+
+    // Create flow
+    document.getElementById('flowForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const name = document.getElementById('name').value.trim();
+      const flowType = document.getElementById('flowType').value;
+      const priority = parseInt(document.getElementById('priority').value);
+      const configStr = document.getElementById('config').value.trim();
+
+      // Validate JSON
+      let config;
+      try {
+        config = JSON.parse(configStr);
+      } catch (err) {
+        alert('Invalid JSON configuration: ' + err.message);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/flows`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, flowType, config, priority })
+        });
+
+        const data = await res.json();
+        
+        if (data.success) {
+          document.getElementById('flowForm').reset();
+          document.getElementById('config').value = '{}';
+          loadFlows();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (error) {
+        alert('Failed to create flow');
+      }
+    });
+
+    // Toggle flow
+    async function toggleFlow(flowId, isActive) {
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/flows/${flowId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          loadFlows();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (error) {
+        alert('Failed to update flow');
+      }
+    }
+
+    // Delete flow
+    async function deleteFlow(flowId) {
+      if (!confirm('Are you sure you want to delete this call flow?')) return;
+
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/flows/${flowId}`, {
+          method: 'DELETE'
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          loadFlows();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (error) {
+        alert('Failed to delete flow');
+      }
+    }
+
+    // Edit flow
+    function editFlow(flowId) {
+      const flow = flows.find(f => f.id === flowId);
+      if (!flow) return;
+
+      document.getElementById('name').value = flow.name;
+      document.getElementById('flowType').value = flow.flowType;
+      document.getElementById('priority').value = flow.priority;
+      document.getElementById('config').value = JSON.stringify(flow.config, null, 2);
+
+      if (confirm('Edit mode: Update the fields above and click Create Flow. Delete this old version?')) {
+        deleteFlow(flowId);
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Load on page load
+    loadFlows();
+  </script>
+
+  <style>
+    .info-box {
+      background: #e7f3ff;
+      border: 1px solid #b3d9ff;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .info-box h3 {
+      margin-top: 0;
+      color: #0066cc;
+    }
+
+    .info-box ul {
+      margin-bottom: 0;
+    }
+
+    .flow-category {
+      margin-bottom: 2rem;
+    }
+
+    .flow-category h3 {
+      color: #333;
+      border-bottom: 2px solid #6f42c1;
+      padding-bottom: 0.5rem;
+      margin-bottom: 1rem;
+      text-transform: capitalize;
+    }
+
+    .flow-items {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .flow-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 1rem;
+      padding: 1rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #dee2e6;
+    }
+
+    .flow-content {
+      flex: 1;
+    }
+
+    .flow-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .flow-config details {
+      margin-top: 0.5rem;
+    }
+
+    .flow-config summary {
+      cursor: pointer;
+      color: #007bff;
+      user-select: none;
+    }
+
+    .flow-config pre {
+      background: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 1rem;
+      overflow-x: auto;
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .flow-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    #config {
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+    }
+  </style>
+</body>
+</html>

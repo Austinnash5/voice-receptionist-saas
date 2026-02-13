@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Base - <%= tenant.name %></title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('../layout', { user }) %>
+  
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <h1>Knowledge Base Management</h1>
+        <p class="subtitle">Manage knowledge base for <%= tenant.name %></p>
+      </div>
+      <div>
+        <a href="/admin/tenants" class="btn btn-secondary">← Back to Tenants</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Add Knowledge Entry</h2>
+      </div>
+      <div class="card-body">
+        <form id="knowledgeForm">
+          <div class="form-group">
+            <label for="category">Category *</label>
+            <input type="text" id="category" name="category" class="form-control" required placeholder="e.g., Services, Pricing, Location">
+          </div>
+
+          <div class="form-group">
+            <label for="question">Topic/Question *</label>
+            <input type="text" id="question" name="question" class="form-control" required placeholder="What topic does this cover?">
+          </div>
+
+          <div class="form-group">
+            <label for="answer">Information/Answer *</label>
+            <textarea id="answer" name="answer" class="form-control" rows="5" required placeholder="Detailed information about this topic..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="keywords">Keywords (comma-separated)</label>
+            <input type="text" id="keywords" name="keywords" class="form-control" placeholder="keyword1, keyword2, keyword3">
+            <small class="form-text">Help the AI find this information by adding relevant keywords</small>
+          </div>
+
+          <div class="form-group">
+            <label for="priority">Priority</label>
+            <select id="priority" name="priority" class="form-control">
+              <option value="0">Normal (0)</option>
+              <option value="1">High (1)</option>
+              <option value="2">Very High (2)</option>
+              <option value="3">Critical (3)</option>
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Add Entry</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Knowledge Base Entries</h2>
+      </div>
+      <div class="card-body">
+        <div id="knowledgeList">
+          <p class="text-muted">Loading entries...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tenantId = '<%= tenant.id %>';
+    let entries = [];
+
+    // Load knowledge entries
+    async function loadEntries() {
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/knowledge`);
+        const data = await res.json();
+        
+        if (data.success) {
+          entries = data.entries;
+          renderEntries();
+        } else {
+          document.getElementById('knowledgeList').innerHTML = `<p class="text-danger">${data.error}</p>`;
+        }
+      } catch (error) {
+        document.getElementById('knowledgeList').innerHTML = `<p class="text-danger">Failed to load entries</p>`;
+      }
+    }
+
+    // Render entries grouped by category
+    function renderEntries() {
+      const list = document.getElementById('knowledgeList');
+      
+      if (entries.length === 0) {
+        list.innerHTML = '<p class="text-muted">No knowledge base entries yet. Add one above to get started.</p>';
+        return;
+      }
+
+      // Group by category
+      const grouped = {};
+      entries.forEach(entry => {
+        const cat = entry.category || 'Uncategorized';
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push(entry);
+      });
+
+      let html = '';
+      Object.keys(grouped).sort().forEach(category => {
+        html += `<div class="kb-category">
+          <h3>${escapeHtml(category)}</h3>
+          <div class="kb-items">`;
+        
+        // Sort by priority (descending)
+        grouped[category].sort((a, b) => b.priority - a.priority).forEach(entry => {
+          html += `
+            <div class="kb-item" data-id="${entry.id}">
+              <div class="kb-content">
+                <div class="kb-header">
+                  <strong>${escapeHtml(entry.question)}</strong>
+                  ${entry.priority > 0 ? `<span class="badge badge-priority">Priority: ${entry.priority}</span>` : ''}
+                  <span class="badge ${entry.isActive ? 'badge-success' : 'badge-disabled'}">
+                    ${entry.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <div class="kb-answer">
+                  ${escapeHtml(entry.answer)}
+                </div>
+                ${entry.keywords && entry.keywords.length > 0 ? `
+                  <div class="kb-keywords">
+                    <strong>Keywords:</strong> ${entry.keywords.map(k => `<span class="keyword-tag">${escapeHtml(k)}</span>`).join(' ')}
+                  </div>
+                ` : ''}
+              </div>
+              <div class="kb-actions">
+                <button onclick="editEntry('${entry.id}')" class="btn btn-sm btn-secondary">Edit</button>
+                <button onclick="toggleEntry('${entry.id}', ${!entry.isActive})" class="btn btn-sm ${entry.isActive ? 'btn-warning' : 'btn-success'}">
+                  ${entry.isActive ? 'Disable' : 'Enable'}
+                </button>
+                <button onclick="deleteEntry('${entry.id}')" class="btn btn-sm btn-danger">Delete</button>
+              </div>
+            </div>`;
+        });
+
+        html += `</div></div>`;
+      });
+
+      list.innerHTML = html;
+    }
+
+    // Add entry
+    document.getElementById('knowledgeForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const category = document.getElementById('category').value.trim();
+      const question = document.getElementById('question').value.trim();
+      const answer = document.getElementById('answer').value.trim();
+      const keywords = document.getElementById('keywords').value.trim();
+      const priority = parseInt(document.getElementById('priority').value);
+
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/knowledge`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category, question, answer, keywords, priority })
+        });
+
+        const data = await res.json();
+        
+        if (data.success) {
+          document.getElementById('knowledgeForm').reset();
+          loadEntries();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (error) {
+        alert('Failed to add entry');
+      }
+    });
+
+    // Toggle entry active status
+    async function toggleEntry(entryId, isActive) {
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/knowledge/${entryId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          loadEntries();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (error) {
+        alert('Failed to update entry');
+      }
+    }
+
+    // Delete entry
+    async function deleteEntry(entryId) {
+      if (!confirm('Are you sure you want to delete this knowledge base entry?')) return;
+
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/knowledge/${entryId}`, {
+          method: 'DELETE'
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          loadEntries();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (error) {
+        alert('Failed to delete entry');
+      }
+    }
+
+    // Edit entry
+    function editEntry(entryId) {
+      const entry = entries.find(e => e.id === entryId);
+      if (!entry) return;
+
+      document.getElementById('category').value = entry.category;
+      document.getElementById('question').value = entry.question;
+      document.getElementById('answer').value = entry.answer;
+      document.getElementById('keywords').value = entry.keywords ? entry.keywords.join(', ') : '';
+      document.getElementById('priority').value = entry.priority;
+
+      if (confirm('Edit mode: Update the fields above and click Add Entry. Delete this old version?')) {
+        deleteEntry(entryId);
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Load on page load
+    loadEntries();
+  </script>
+
+  <style>
+    .kb-category {
+      margin-bottom: 2rem;
+    }
+
+    .kb-category h3 {
+      color: #333;
+      border-bottom: 2px solid #28a745;
+      padding-bottom: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .kb-items {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .kb-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 1rem;
+      padding: 1rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #dee2e6;
+    }
+
+    .kb-content {
+      flex: 1;
+    }
+
+    .kb-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .kb-answer {
+      margin-bottom: 0.5rem;
+      color: #495057;
+      line-height: 1.6;
+    }
+
+    .kb-keywords {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .keyword-tag {
+      display: inline-block;
+      background: #e9ecef;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      margin-right: 0.25rem;
+      font-size: 0.85rem;
+    }
+
+    .kb-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .badge-priority {
+      background: #ff6b6b;
+      color: white;
+    }
+
+    .form-text {
+      display: block;
+      margin-top: 0.25rem;
+      color: #6c757d;
+      font-size: 0.875rem;
+    }
+  </style>
+</body>
+</html>
