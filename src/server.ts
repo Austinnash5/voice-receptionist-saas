@@ -42,10 +42,11 @@ export function createServer(): Express {
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: env.NODE_ENV === 'production',
+      secure: false, // Set to false when using Cloudflare Flexible SSL
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
+    proxy: true, // Trust the proxy
   };
 
   // Use Redis for session storage in production
