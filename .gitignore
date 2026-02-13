@@ -27,9 +27,6 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Prisma
-prisma/migrations/*_migration.sql
-
 # Testing
 coverage/
 .nyc_output/
@@ -46,3 +43,8 @@ nginx/ssl/
 # Backup files
 *.sql
 *.backup
+
+# Allow Prisma migrations to be tracked
+!prisma/migrations/
+!prisma/migrations/**/
+!prisma/migrations/**/*.sql
