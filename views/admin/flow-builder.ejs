@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= mode === 'create' ? 'Create' : 'Edit' %> Call Flow - <%= tenant.name %></title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .builder-container {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+
+    .builder-main {
+      min-height: 600px;
+    }
+
+    .builder-sidebar {
+      position: sticky;
+      top: 2rem;
+      height: fit-content;
+    }
+
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .step-card {
+      background: white;
+      border: 2px solid #e1e4e8;
+      border-radius: 8px;
+      padding: 1rem;
+      cursor: move;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .step-card:hover {
+      border-color: #0366d6;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .step-card.entry-point {
+      border-color: #28a745;
+      border-width: 3px;
+    }
+
+    .step-card.entry-point::before {
+      content: "START";
+      position: absolute;
+      top: -12px;
+      left: 12px;
+      background: #28a745;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .step-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 0.75rem;
+    }
+
+    .step-type-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .step-type-menu { background: #e3f2fd; color: #1565c0; }
+    .step-type-message { background: #f3e5f5; color: #6a1b9a; }
+    .step-type-transfer { background: #fff3e0; color: #e65100; }
+    .step-type-ai { background: #e8f5e9; color: #2e7d32; }
+    .step-type-voicemail { background: #fce4ec; color: #c2185b; }
+    .step-type-conditional { background: #fff9c4; color: #f57f17; }
+
+    .step-card-title {
+      font-weight: 600;
+      margin: 0.5rem 0;
+      color: #24292e;
+    }
+
+    .step-card-prompt {
+      font-size: 0.875rem;
+      color: #586069;
+      font-style: italic;
+      margin: 0.5rem 0;
+    }
+
+    .step-card-options {
+      font-size: 0.875rem;
+      color: #586069;
+      margin-top: 0.5rem;
+    }
+
+    .step-card-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    .step-card-actions .btn {
+      flex: 1;
+      font-size: 0.875rem;
+      padding: 0.5rem;
+    }
+
+    .add-step-button {
+      width: 100%;
+      padding: 1rem;
+      background: #f6f8fa;
+      border: 2px dashed #d1d5da;
+      border-radius: 8px;
+      color: #0366d6;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .add-step-button:hover {
+      background: #e1f5fe;
+      border-color: #0366d6;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      overflow-y: auto;
+    }
+
+    .modal.active {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background-color: white;
+      padding: 2rem;
+      border-radius: 8px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+    }
+
+    .close-modal {
+      font-size: 2rem;
+      cursor: pointer;
+      color: #586069;
+      background: none;
+      border: none;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .close-modal:hover {
+      color: #24292e;
+    }
+
+    .step-type-selector {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .step-type-option {
+      padding: 1.5rem;
+      border: 2px solid #e1e4e8;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .step-type-option:hover {
+      border-color: #0366d6;
+      background: #f6f8fa;
+    }
+
+    .step-type-option.selected {
+      border-color: #0366d6;
+      background: #e1f5fe;
+    }
+
+    .step-type-option-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .step-type-option-title {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .step-type-option-desc {
+      font-size: 0.875rem;
+      color: #586069;
+    }
+
+    .menu-options-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .menu-option-item {
+      display: grid;
+      grid-template-columns: 60px 1fr auto;
+      gap: 0.5rem;
+      align-items: start;
+      padding: 0.75rem;
+      background: #f6f8fa;
+      border-radius: 4px;
+    }
+
+    .help-text {
+      font-size: 0.875rem;
+      color: #586069;
+      margin-top: 0.25rem;
+      font-style: italic;
+    }
+
+    .preview-box {
+      background: #f6f8fa;
+      border: 1px solid #e1e4e8;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .preview-box h4 {
+      margin: 0 0 1rem 0;
+      color: #24292e;
+    }
+
+    .flow-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .flow-stat {
+      text-align: center;
+      padding: 1rem;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #e1e4e8;
+    }
+
+    .flow-stat-value {
+      display: block;
+      font-size: 2rem;
+      font-weight: 600;
+      color: #0366d6;
+    }
+
+    .flow-stat-label {
+      display: block;
+      font-size: 0.875rem;
+      color: #586069;
+      margin-top: 0.5rem;
+    }
+
+    .alert {
+      padding: 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+    }
+
+    .alert-info {
+      background: #e7f3ff;
+      border: 1px solid #b3d9ff;
+      color: #0366d6;
+    }
+
+    .alert-warning {
+      background: #fff3cd;
+      border: 1px solid #ffeaa7;
+      color: #856404;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: #586069;
+    }
+
+    .empty-state-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    @media (max-width: 1024px) {
+      .builder-container {
+        grid-template-columns: 1fr;
+      }
+
+      .builder-sidebar {
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <a href="/">🤖 AI Voice Receptionist</a>
+      </div>
+      <ul class="nav-menu">
+        <li><a href="/admin/dashboard">Dashboard</a></li>
+        <li><a href="/admin/tenants">Tenants</a></li>
+        <li><a href="/admin/numbers">Phone Numbers</a></li>
+        <li class="user-menu">
+          <span><%= user.email %></span>
+          <a href="/logout" class="btn btn-sm">Logout</a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <div class="container">
+      <div class="page-header">
+        <div>
+          <h1><%= mode === 'create' ? '✨ Create New' : '✏️ Edit' %> Call Flow</h1>
+          <p class="subtitle"><%= tenant.name %></p>
+        </div>
+        <div>
+          <a href="/admin/tenants/<%= tenant.id %>/flows" class="btn btn-secondary">← Back to Flows</a>
+        </div>
+      </div>
+
+      <div class="alert alert-info">
+        <strong>💡 How it works:</strong> Create a call flow by adding steps. Each step is like a page in your phone menu. Start with a "Menu" step to greet callers and give them options!
+      </div>
+
+      <!-- Basic Flow Settings -->
+      <div class="card">
+        <h3>📋 Flow Settings</h3>
+        <div class="form-group">
+          <label for="flowName">Flow Name *</label>
+          <input type="text" id="flowName" class="form-control" placeholder="e.g., Main Business Hours Menu" required>
+          <small class="help-text">Give your flow a descriptive name</small>
+        </div>
+
+        <div class="form-group">
+          <label for="flowType">Flow Type *</label>
+          <select id="flowType" class="form-control" required>
+            <option value="">Choose when this flow should be used...</option>
+            <option value="MAIN_MENU">Main Menu - When someone first calls</option>
+            <option value="AFTER_HOURS">After Hours - When you're closed</option>
+            <option value="NO_ANSWER">No Answer - When a transfer isn't answered</option>
+            <option value="DEPARTMENT">Department Menu - For specific departments</option>
+            <option value="VOICEMAIL">Voicemail - Direct to voicemail</option>
+            <option value="CUSTOM">Custom - Special purpose flow</option>
+          </select>
+          <small class="help-text">This determines when the flow will be used</small>
+        </div>
+
+        <div class="form-group">
+          <label for="flowPriority">Priority</label>
+          <select id="flowPriority" class="form-control">
+            <option value="0">Normal (0) - Standard priority</option>
+            <option value="1">High (1) - Checked before normal flows</option>
+            <option value="2">Very High (2) - Important flows</option>
+            <option value="3">Critical (3) - Highest priority</option>
+          </select>
+          <small class="help-text">Higher priority flows are checked first if you have multiple flows of the same type</small>
+        </div>
+
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="flowActive" checked>
+            Activate this flow immediately
+          </label>
+        </div>
+      </div>
+
+      <!-- Flow Builder -->
+      <div class="builder-container">
+        <div class="builder-main">
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h3>🎯 Flow Steps</h3>
+              <button class="btn btn-primary" onclick="openAddStepModal()">+ Add Step</button>
+            </div>
+
+            <div id="stepsList" class="step-list">
+              <div class="empty-state">
+                <div class="empty-state-icon">📞</div>
+                <h4>No steps yet</h4>
+                <p>Add your first step to start building your call flow</p>
+                <button class="btn btn-primary" onclick="openAddStepModal()">Add First Step</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="builder-sidebar">
+          <div class="card">
+            <h3>📊 Flow Preview</h3>
+            
+            <div class="flow-stats">
+              <div class="flow-stat">
+                <span class="flow-stat-value" id="stepCount">0</span>
+                <span class="flow-stat-label">Steps</span>
+              </div>
+              <div class="flow-stat">
+                <span class="flow-stat-value" id="menuCount">0</span>
+                <span class="flow-stat-label">Menus</span>
+              </div>
+              <div class="flow-stat">
+                <span class="flow-stat-value" id="optionCount">0</span>
+                <span class="flow-stat-label">Options</span>
+              </div>
+            </div>
+
+            <div class="preview-box">
+              <h4>Sample Call Experience</h4>
+              <div id="flowPreview" style="font-size: 0.875rem; color: #586069;">
+                Add steps to see a preview of how your flow will work
+              </div>
+            </div>
+
+            <button class="btn btn-success btn-lg" style="width: 100%; margin-top: 1rem;" onclick="saveFlow()">
+              💾 Save Flow
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Add/Edit Step Modal -->
+  <div id="stepModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">Add Step</h2>
+        <button class="close-modal" onclick="closeStepModal()">&times;</button>
+      </div>
+
+      <div id="stepTypeSection">
+        <h4 style="margin-bottom: 1rem;">Choose Step Type</h4>
+        <div class="step-type-selector">
+          <div class="step-type-option" onclick="selectStepType('menu')">
+            <div class="step-type-option-icon">📋</div>
+            <div class="step-type-option-title">Menu</div>
+            <div class="step-type-option-desc">Press 1 for..., Press 2 for...</div>
+          </div>
+          <div class="step-type-option" onclick="selectStepType('message')">
+            <div class="step-type-option-icon">💬</div>
+            <div class="step-type-option-title">Message</div>
+            <div class="step-type-option-desc">Play a message</div>
+          </div>
+          <div class="step-type-option" onclick="selectStepType('transfer')">
+            <div class="step-type-option-icon">📞</div>
+            <div class="step-type-option-title">Transfer</div>
+            <div class="step-type-option-desc">Transfer to a phone number</div>
+          </div>
+          <div class="step-type-option" onclick="selectStepType('ai')">
+            <div class="step-type-option-icon">🤖</div>
+            <div class="step-type-option-title">AI Assistant</div>
+            <div class="step-type-option-desc">Hand off to AI</div>
+          </div>
+          <div class="step-type-option" onclick="selectStepType('voicemail')">
+            <div class="step-type-option-icon">📧</div>
+            <div class="step-type-option-title">Voicemail</div>
+            <div class="step-type-option-desc">Record a message</div>
+          </div>
+          <div class="step-type-option" onclick="selectStepType('conditional')">
+            <div class="step-type-option-icon">🔀</div>
+            <div class="step-type-option-title">Conditional</div>
+            <div class="step-type-option-desc">Check business hours</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="stepFormSection" style="display: none;">
+        <button class="btn btn-secondary btn-sm" onclick="backToStepTypeSelection()" style="margin-bottom: 1rem;">
+          ← Back to Step Types
+        </button>
+        
+        <div id="stepForm">
+          <!-- Dynamic form content will be inserted here -->
+        </div>
+
+        <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
+          <button class="btn btn-secondary" onclick="closeStepModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveStep()" style="flex: 1;">Save Step</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tenantId = '<%= tenant.id %>';
+    const mode = '<%= mode %>';
+    const existingFlow = <%= flow ? JSON.stringify(flow) : 'null' %>;
+    
+    let steps = [];
+    let entryPoint = '';
+    let editingStepId = null;
+    let currentStepType = null;
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+      if (mode === 'edit' && existingFlow) {
+        loadExistingFlow();
+      }
+    });
+
+    function loadExistingFlow() {
+      document.getElementById('flowName').value = existingFlow.name;
+      document.getElementById('flowType').value = existingFlow.flowType;
+      document.getElementById('flowPriority').value = existingFlow.priority;
+      document.getElementById('flowActive').checked = existingFlow.isActive;
+
+      const config = typeof existingFlow.config === 'string' ? JSON.parse(existingFlow.config) : existingFlow.config;
+      steps = config.steps || [];
+      entryPoint = config.entryPoint || '';
+
+      renderSteps();
+      updatePreview();
+    }
+
+    function generateStepId() {
+      return 'step_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    function openAddStepModal() {
+      editingStepId = null;
+      document.getElementById('modalTitle').textContent = 'Add New Step';
+      document.getElementById('stepTypeSection').style.display = 'block';
+      document.getElementById('stepFormSection').style.display = 'none';
+      document.getElementById('stepModal').classList.add('active');
+    }
+
+    function openEditStepModal(stepId) {
+      editingStepId = stepId;
+      const step = steps.find(s => s.id === stepId);
+      if (!step) return;
+
+      document.getElementById('modalTitle').textContent = 'Edit Step';
+      selectStepType(step.type, step);
+      document.getElementById('stepModal').classList.add('active');
+    }
+
+    function closeStepModal() {
+      document.getElementById('stepModal').classList.remove('active');
+      editingStepId = null;
+      currentStepType = null;
+    }
+
+    function backToStepTypeSelection() {
+      document.getElementById('stepTypeSection').style.display = 'block';
+      document.getElementById('stepFormSection').style.display = 'none';
+      currentStepType = null;
+    }
+
+    function selectStepType(type, existingData = null) {
+      currentStepType = type;
+      document.getElementById('stepTypeSection').style.display = 'none';
+      document.getElementById('stepFormSection').style.display = 'block';
+
+      const formHtml = generateStepForm(type, existingData);
+      document.getElementById('stepForm').innerHTML = formHtml;
+
+      // If editing, populate form
+      if (existingData) {
+        populateStepForm(type, existingData);
+      }
+    }
+
+    function generateStepForm(type, existingData) {
+      switch (type) {
+        case 'menu':
+          return `
+            <h4>📋 Menu Step</h4>
+            <p class="help-text">Create a menu where callers press digits to choose options</p>
+            
+            <div class="form-group">
+              <label>Step ID *</label>
+              <input type="text" id="stepId" class="form-control" placeholder="e.g., main_menu or texas_menu" required ${existingData ? 'readonly' : ''}>
+              <small class="help-text">A unique name for this step (no spaces, use underscores)</small>
+            </div>
+
+            <div class="form-group">
+              <label>What the caller hears *</label>
+              <textarea id="stepPrompt" class="form-control" rows="3" placeholder="e.g., Welcome to Preferred Trailers. Press 1 for Texas location, press 2 for Arizona location." required></textarea>
+              <small class="help-text">This message will be read to the caller</small>
+            </div>
+
+            <div class="form-group">
+              <label>Timeout (seconds)</label>
+              <input type="number" id="stepTimeout" class="form-control" value="5" min="3" max="10">
+              <small class="help-text">How long to wait for the caller to press a digit</small>
+            </div>
+
+            <div class="form-group">
+              <label>Menu Options</label>
+              <div id="menuOptionsList" class="menu-options-list"></div>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addMenuOption()">+ Add Option</button>
+            </div>
+          `;
+
+        case 'message':
+          return `
+            <h4>💬 Message Step</h4>
+            <p class="help-text">Play a message and then move to the next step</p>
+            
+            <div class="form-group">
+              <label>Step ID *</label>
+              <input type="text" id="stepId" class="form-control" placeholder="e.g., closed_message" required ${existingData ? 'readonly' : ''}>
+              <small class="help-text">A unique name for this step</small>
+            </div>
+
+            <div class="form-group">
+              <label>Message *</label>
+              <textarea id="stepPrompt" class="form-control" rows="3" placeholder="e.g., Thank you for calling. We're currently closed." required></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>Next Step</label>
+              <select id="stepNextStep" class="form-control">
+                <option value="">End call after message</option>
+                ${steps.filter(s => !editingStepId || s.id !== editingStepId).map(s => `<option value="${s.id}">${s.id}</option>`).join('')}
+              </select>
+              <small class="help-text">What happens after the message plays</small>
+            </div>
+          `;
+
+        case 'transfer':
+          return `
+            <h4>📞 Transfer Step</h4>
+            <p class="help-text">Transfer the call to a phone number</p>
+            
+            <div class="form-group">
+              <label>Step ID *</label>
+              <input type="text" id="stepId" class="form-control" placeholder="e.g., transfer_sales" required ${existingData ? 'readonly' : ''}>
+            </div>
+
+            <div class="form-group">
+              <label>Message before transfer</label>
+              <textarea id="stepPrompt" class="form-control" rows="2" placeholder="e.g., Transferring you to our sales team. Please hold."></textarea>
+            </div>
+
+            <div class="form-group">
+              <label>Phone Number *</label>
+              <input type="tel" id="stepPhoneNumber" class="form-control" placeholder="+15551234567" required>
+              <small class="help-text">Include country code (e.g., +1 for USA)</small>
+            </div>
+          `;
+
+        case 'ai':
+          return `
+            <h4>🤖 AI Assistant Step</h4>
+            <p class="help-text">Hand the call over to your AI receptionist</p>
+            
+            <div class="form-group">
+              <label>Step ID *</label>
+              <input type="text" id="stepId" class="form-control" placeholder="e.g., ai_receptionist" required ${existingData ? 'readonly' : ''}>
+            </div>
+
+            <div class="form-group">
+              <label>AI Greeting</label>
+              <textarea id="stepPrompt" class="form-control" rows="2" placeholder="e.g., How can I help you today?"></textarea>
+              <small class="help-text">Optional - what the AI says when it takes over</small>
+            </div>
+          `;
+
+        case 'voicemail':
+          return `
+            <h4>📧 Voicemail Step</h4>
+            <p class="help-text">Let callers leave a voicemail message</p>
+            
+            <div class="form-group">
+              <label>Step ID *</label>
+              <input type="text" id="stepId" class="form-control" placeholder="e.g., leave_voicemail" required ${existingData ? 'readonly' : ''}>
+            </div>
+
+            <div class="form-group">
+              <label>Voicemail Prompt *</label>
+              <textarea id="stepPrompt" class="form-control" rows="2" placeholder="e.g., Please leave a message after the beep." required></textarea>
+            </div>
+          `;
+
+        case 'conditional':
+          return `
+            <h4>🔀 Conditional Step</h4>
+            <p class="help-text">Make a decision based on business hours</p>
+            
+            <div class="form-group">
+              <label>Step ID *</label>
+              <input type="text" id="stepId" class="form-control" placeholder="e.g., check_hours" required ${existingData ? 'readonly' : ''}>
+            </div>
+
+            <div class="form-group">
+              <label>Condition *</label>
+              <select id="stepCondition" class="form-control" required>
+                <option value="is_open">If business is OPEN</option>
+                <option value="is_closed">If business is CLOSED</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>If True, go to step:</label>
+              <select id="stepTrueTarget" class="form-control">
+                <option value="">Choose a step...</option>
+                ${steps.filter(s => !editingStepId || s.id !== editingStepId).map(s => `<option value="${s.id}">${s.id}</option>`).join('')}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>If False, go to step:</label>
+              <select id="stepFalseTarget" class="form-control">
+                <option value="">Choose a step...</option>
+                ${steps.filter(s => !editingStepId || s.id !== editingStepId).map(s => `<option value="${s.id}">${s.id}</option>`).join('')}
+              </select>
+            </div>
+          `;
+      }
+    }
+
+    function populateStepForm(type, data) {
+      document.getElementById('stepId').value = data.id || '';
+      if (data.prompt) document.getElementById('stepPrompt').value = data.prompt;
+      if (data.timeout) document.getElementById('stepTimeout').value = data.timeout;
+      if (data.phoneNumber) document.getElementById('stepPhoneNumber').value = data.phoneNumber;
+      if (data.nextStep) document.getElementById('stepNextStep').value = data.nextStep;
+      if (data.condition) document.getElementById('stepCondition').value = data.condition;
+      if (data.trueTarget) document.getElementById('stepTrueTarget').value = data.trueTarget;
+      if (data.falseTarget) document.getElementById('stepFalseTarget').value = data.falseTarget;
+
+      if (type === 'menu' && data.options) {
+        data.options.forEach(opt => addMenuOption(opt));
+      }
+    }
+
+    let menuOptionCounter = 0;
+
+    function addMenuOption(existingOption = null) {
+      const container = document.getElementById('menuOptionsList');
+      const optionId = `option_${menuOptionCounter++}`;
+      
+      const div = document.createElement('div');
+      div.className = 'menu-option-item';
+      div.id = optionId;
+      div.innerHTML = `
+        <input type="text" class="form-control" placeholder="1" value="${existingOption?.digit || ''}" data-field="digit" maxlength="1">
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <input type="text" class="form-control" placeholder="Label (e.g., Sales)" value="${existingOption?.label || ''}" data-field="label">
+          <select class="form-control" data-field="action">
+            <option value="goto" ${existingOption?.action === 'goto' ? 'selected' : ''}>Go to another step</option>
+            <option value="ai" ${existingOption?.action === 'ai' ? 'selected' : ''}>Connect to AI</option>
+            <option value="transfer" ${existingOption?.action === 'transfer' ? 'selected' : ''}>Transfer call</option>
+            <option value="voicemail" ${existingOption?.action === 'voicemail' ? 'selected' : ''}>Voicemail</option>
+            <option value="hangup" ${existingOption?.action === 'hangup' ? 'selected' : ''}>End call</option>
+          </select>
+          <select class="form-control" data-field="target" style="display: ${existingOption?.action === 'goto' ? 'block' : 'none'};">
+            <option value="">Choose target step...</option>
+            ${steps.filter(s => !editingStepId || s.id !== editingStepId).map(s => `<option value="${s.id}" ${existingOption?.target === s.id ? 'selected' : ''}>${s.id}</option>`).join('')}
+          </select>
+          <input type="tel" class="form-control" placeholder="+15551234567" value="${existingOption?.phoneNumber || ''}" data-field="phoneNumber" style="display: ${existingOption?.action === 'transfer' ? 'block' : 'none'};">
+        </div>
+        <button type="button" class="btn btn-danger btn-sm" onclick="removeMenuOption('${optionId}')">✕</button>
+      `;
+      
+      container.appendChild(div);
+
+      // Add event listener to show/hide target fields
+      const actionSelect = div.querySelector('[data-field="action"]');
+      const targetSelect = div.querySelector('[data-field="target"]');
+      const phoneInput = div.querySelector('[data-field="phoneNumber"]');
+      
+      actionSelect.addEventListener('change', function() {
+        targetSelect.style.display = this.value === 'goto' ? 'block' : 'none';
+        phoneInput.style.display = this.value === 'transfer' ? 'block' : 'none';
+      });
+    }
+
+    function removeMenuOption(optionId) {
+      document.getElementById(optionId).remove();
+    }
+
+    function saveStep() {
+      try {
+        const stepId = document.getElementById('stepId').value.trim();
+        if (!stepId) {
+          alert('Please enter a Step ID');
+          return;
+        }
+
+        // Check for duplicate IDs (unless editing)
+        if (!editingStepId && steps.some(s => s.id === stepId)) {
+          alert('A step with this ID already exists. Please choose a different ID.');
+          return;
+        }
+
+        const stepData = {
+          id: stepId,
+          type: currentStepType,
+        };
+
+        // Collect step-specific data
+        const promptEl = document.getElementById('stepPrompt');
+        if (promptEl && promptEl.value.trim()) {
+          stepData.prompt = promptEl.value.trim();
+        }
+
+        switch (currentStepType) {
+          case 'menu':
+            const timeoutEl = document.getElementById('stepTimeout');
+            if (timeoutEl) stepData.timeout = parseInt(timeoutEl.value);
+
+            // Collect menu options
+            const optionItems = document.querySelectorAll('.menu-option-item');
+            stepData.options = Array.from(optionItems).map(item => {
+              const digitEl = item.querySelector('[data-field="digit"]');
+              const labelEl = item.querySelector('[data-field="label"]');
+              const actionEl = item.querySelector('[data-field="action"]');
+              const targetEl = item.querySelector('[data-field="target"]');
+              const phoneEl = item.querySelector('[data-field="phoneNumber"]');
+
+              const option = {
+                digit: digitEl.value.trim(),
+                label: labelEl.value.trim(),
+                action: actionEl.value,
+              };
+
+              if (actionEl.value === 'goto') {
+                option.target = targetEl.value;
+              } else if (actionEl.value === 'transfer') {
+                option.phoneNumber = phoneEl.value.trim();
+              }
+
+              return option;
+            }).filter(opt => opt.digit && opt.label);
+
+            if (stepData.options.length === 0) {
+              alert('Please add at least one menu option');
+              return;
+            }
+            break;
+
+          case 'message':
+            const nextStepEl = document.getElementById('stepNextStep');
+            if (nextStepEl && nextStepEl.value) {
+              stepData.nextStep = nextStepEl.value;
+            }
+            break;
+
+          case 'transfer':
+            const phoneEl = document.getElementById('stepPhoneNumber');
+            if (!phoneEl || !phoneEl.value.trim()) {
+              alert('Please enter a phone number');
+              return;
+            }
+            stepData.phoneNumber = phoneEl.value.trim();
+            break;
+
+          case 'conditional':
+            const conditionEl = document.getElementById('stepCondition');
+            const trueTargetEl = document.getElementById('stepTrueTarget');
+            const falseTargetEl = document.getElementById('stepFalseTarget');
+            
+            stepData.condition = conditionEl.value;
+            stepData.trueTarget = trueTargetEl.value;
+            stepData.falseTarget = falseTargetEl.value;
+            break;
+        }
+
+        // Add or update step
+        if (editingStepId) {
+          const index = steps.findIndex(s => s.id === editingStepId);
+          if (index !== -1) {
+            steps[index] = stepData;
+          }
+        } else {
+          steps.push(stepData);
+          // If this is the first step, make it the entry point
+          if (steps.length === 1) {
+            entryPoint = stepId;
+          }
+        }
+
+        renderSteps();
+        updatePreview();
+        closeStepModal();
+      } catch (error) {
+        console.error('Error saving step:', error);
+        alert('Error saving step: ' + error.message);
+      }
+    }
+
+    function deleteStep(stepId) {
+      if (!confirm('Delete this step?')) return;
+      
+      steps = steps.filter(s => s.id !== stepId);
+      
+      // Update entry point if needed
+      if (entryPoint === stepId) {
+        entryPoint = steps.length > 0 ? steps[0].id : '';
+      }
+      
+      renderSteps();
+      updatePreview();
+    }
+
+    function setEntryPoint(stepId) {
+      entryPoint = stepId;
+      renderSteps();
+      updatePreview();
+    }
+
+    function moveStepUp(index) {
+      if (index > 0) {
+        [steps[index], steps[index - 1]] = [steps[index - 1], steps            [index]];
+        renderSteps();
+      }
+    }
+
+    function moveStepDown(index) {
+      if (index < steps.length - 1) {
+        [steps[index], steps[index + 1]] = [steps[index + 1], steps[index]];
+        renderSteps();
+      }
+    }
+
+    function renderSteps() {
+      const container = document.getElementById('stepsList');
+      
+      if (steps.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📞</div>
+            <h4>No steps yet</h4>
+            <p>Add your first step to start building your call flow</p>
+            <button class="btn btn-primary" onclick="openAddStepModal()">Add First Step</button>
+          </div>
+        `;
+        return;
+      }
+
+      let html = '';
+      steps.forEach((step, index) => {
+        const isEntry = step.id === entryPoint;
+        html += `
+          <div class="step-card ${isEntry ? 'entry-point' : ''}" draggable="true">
+            <div class="step-card-header">
+              <span class="step-type-badge step-type-${step.type}">${step.type}</span>
+              <div>
+                ${index > 0 ? `<button class="btn btn-sm" onclick="moveStepUp(${index})">↑</button>` : ''}
+                ${index < steps.length - 1 ? `<button class="btn btn-sm" onclick="moveStepDown(${index})">↓</button>` : ''}
+              </div>
+            </div>
+            <div class="step-card-title">${step.id}</div>
+            ${step.prompt ? `<div class="step-card-prompt">"${step.prompt}"</div>` : ''}
+            ${step.options ? `<div class="step-card-options">${step.options.length} option(s)</div>` : ''}
+            <div class="step-card-actions">
+              ${!isEntry ? `<button class="btn btn-sm btn-secondary" onclick="setEntryPoint('${step.id}')">Set as START</button>` : ''}
+              <button class="btn btn-sm btn-secondary" onclick="openEditStepModal('${step.id}')">✏️ Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteStep('${step.id}')">🗑️</button>
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    function updatePreview() {
+      // Update stats
+      document.getElementById('stepCount').textContent = steps.length;
+      document.getElementById('menuCount').textContent = steps.filter(s => s.type === 'menu').length;
+      
+      let totalOptions = 0;
+      steps.forEach(s => {
+        if (s.options) totalOptions += s.options.length;
+      });
+      document.getElementById('optionCount').textContent = totalOptions;
+
+      // Update preview text
+      const previewEl = document.getElementById('flowPreview');
+      if (steps.length === 0) {
+        previewEl.textContent = 'Add steps to see a preview of how your flow will work';
+        return;
+      }
+
+      let preview = '📞 <strong>Caller dials your number...</strong><br><br>';
+      
+      const entryStep = steps.find(s => s.id === entryPoint);
+      if (entryStep) {
+        preview += generateStepPreview(entryStep, 0);
+      } else {
+        preview += '<em>No entry point set. Click "Set as START" on a step.</em>';
+      }
+
+      previewEl.innerHTML = preview;
+    }
+
+    function generateStepPreview(step, depth) {
+      const indent = '&nbsp;&nbsp;'.repeat(depth);
+      let preview = '';
+
+      switch (step.type) {
+        case 'menu':
+          preview += `${indent}🔊 System says: "${step.prompt}"<br>`;
+          if (step.options) {
+            step.options.forEach(opt => {
+              preview += `${indent}${indent}→ Press ${opt.digit}: ${opt.label}<br>`;
+            });
+          }
+          break;
+
+        case 'message':
+          preview += `${indent}🔊 System says: "${step.prompt}"<br>`;
+          if (step.nextStep) {
+            preview += `${indent}${indent}→ Then continues to: ${step.nextStep}<br>`;
+          } else {
+            preview += `${indent}${indent}→ Call ends<br>`;
+          }
+          break;
+
+        case 'transfer':
+          if (step.prompt) {
+            preview += `${indent}🔊 System says: "${step.prompt}"<br>`;
+          }
+          preview += `${indent}📞 Transfers to: ${step.phoneNumber}<br>`;
+          break;
+
+        case 'ai':
+          preview += `${indent}🤖 AI takes over<br>`;
+          if (step.prompt) {
+            preview += `${indent}${indent}AI says: "${step.prompt}"<br>`;
+          }
+          break;
+
+        case 'voicemail':
+          preview += `${indent}📧 Voicemail: "${step.prompt}"<br>`;
+          preview += `${indent}${indent}→ Caller leaves message<br>`;
+          break;
+
+        case 'conditional':
+          preview += `${indent}🔀 Checks: ${step.condition === 'is_open' ? 'If open' : 'If closed'}<br>`;
+          if (step.trueTarget) {
+            preview += `${indent}${indent}✓ Yes → ${step.trueTarget}<br>`;
+          }
+          if (step.falseTarget) {
+            preview += `${indent}${indent}✗ No → ${step.falseTarget}<br>`;
+          }
+          break;
+      }
+
+      return preview;
+    }
+
+    async function saveFlow() {
+      try {
+        const flowName = document.getElementById('flowName').value.trim();
+        const flowType = document.getElementById('flowType').value;
+        const flowPriority = parseInt(document.getElementById('flowPriority').value);
+        const flowActive = document.getElementById('flowActive').checked;
+
+        if (!flowName) {
+          alert('Please enter a flow name');
+          return;
+        }
+
+        if (!flowType) {
+          alert('Please select a flow type');
+          return;
+        }
+
+        if (steps.length === 0) {
+          alert('Please add at least one step to your flow');
+          return;
+        }
+
+        if (!entryPoint) {
+          alert('Please set an entry point by clicking "Set as START" on one of your steps');
+          return;
+        }
+
+        const flowConfig = {
+          entryPoint,
+          steps,
+          description: `${flowName} - ${steps.length} steps`,
+        };
+
+        const flowData = {
+          name: flowName,
+          flowType,
+          priority: flowPriority,
+          isActive: flowActive,
+          config: flowConfig,
+        };
+
+        const url = mode === 'edit' 
+          ? `/api/flows/${existingFlow.id}`
+          : `/api/tenants/${tenantId}/flows`;
+        
+        const method = mode === 'edit' ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(flowData),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to save flow');
+        }
+
+        alert('Flow saved successfully!');
+        window.location.href = `/admin/tenants/${tenantId}/flows`;
+      } catch (error) {
+        console.error('Error saving flow:', error);
+        alert('Error saving flow: ' + error.message);
+      }
+    }
+  </script>
+</body>
+</html>
