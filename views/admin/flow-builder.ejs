@@ -544,14 +544,35 @@
     });
 
     function loadExistingFlow() {
+      console.log('Loading existing flow:', existingFlow);
+      
       document.getElementById('flowName').value = existingFlow.name;
       document.getElementById('flowType').value = existingFlow.flowType;
-      document.getElementById('flowPriority').value = existingFlow.priority;
+      document.getElementById('flowPriority').value = existingFlow.priority || 0;
       document.getElementById('flowActive').checked = existingFlow.isActive;
 
-      const config = typeof existingFlow.config === 'string' ? JSON.parse(existingFlow.config) : existingFlow.config;
+      console.log('Flow config:', existingFlow.config);
+      console.log('Config type:', typeof existingFlow.config);
+      
+      let config;
+      if (typeof existingFlow.config === 'string') {
+        try {
+          config = JSON.parse(existingFlow.config);
+        } catch (e) {
+          console.error('Failed to parse config:', e);
+          config = { steps: [], entryPoint: '' };
+        }
+      } else {
+        config = existingFlow.config || { steps: [], entryPoint: '' };
+      }
+      
+      console.log('Parsed config:', config);
+      
       steps = config.steps || [];
       entryPoint = config.entryPoint || '';
+      
+      console.log('Loaded steps:', steps);
+      console.log('Entry point:', entryPoint);
 
       renderSteps();
       updatePreview();

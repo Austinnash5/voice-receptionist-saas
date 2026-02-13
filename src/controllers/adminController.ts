@@ -421,6 +421,10 @@ export async function getEditFlowPage(req: Request, res: Response) {
       return res.status(404).send('Flow not found');
     }
 
+    console.log('Editing flow:', flow.id);
+    console.log('Flow config type:', typeof flow.config);
+    console.log('Flow config:', JSON.stringify(flow.config));
+
     res.render('admin/flow-builder', {
       user: req.user,
       tenant,
