@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Knowledge Tester - <%= tenant.name %></title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <a href="/">🤖 AI Voice Receptionist</a>
+      </div>
+      <ul class="nav-menu">
+        <li><a href="/admin/dashboard">Dashboard</a></li>
+        <li><a href="/admin/tenants">Tenants</a></li>
+        <li><a href="/admin/numbers">Phone Numbers</a></li>
+        <li class="user-menu">
+          <span><%= user.email %></span>
+          <a href="/logout" class="btn btn-sm">Logout</a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="main-content">
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <h1>🧪 AI Knowledge Tester</h1>
+        <p class="subtitle">Test what your AI receptionist knows for <%= tenant.name %></p>
+      </div>
+      <div>
+        <a href="/admin/tenants" class="btn btn-secondary">← Back to Tenants</a>
+      </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 2rem;">
+      <div class="stat-card">
+        <div class="stat-value" id="faqCount">-</div>
+        <div class="stat-label">Active FAQs</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="kbCount">-</div>
+        <div class="stat-label">Knowledge Base Entries</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="flowCount">-</div>
+        <div class="stat-label">Call Flows</div>
+      </div>
+    </div>
+
+    <!-- Test Interface -->
+    <div class="card">
+      <div class="card-header">
+        <h2>Test Knowledge Search</h2>
+      </div>
+      <div class="card-body">
+        <p class="text-muted" style="margin-bottom: 1.5rem;">
+          Enter questions or topics like your customers would ask them. 
+          See what your AI can find in your FAQs and Knowledge Base.
+        </p>
+
+        <div class="form-group">
+          <label for="testQuery">Ask a Question</label>
+          <input 
+            type="text" 
+            id="testQuery" 
+            class="form-control" 
+            placeholder="e.g., What are your hours? or How much does it cost?"
+          >
+        </div>
+
+        <div class="button-group">
+          <button onclick="testFAQ()" class="btn btn-primary">🔍 Search FAQs</button>
+          <button onclick="testKnowledge()" class="btn btn-info">📚 Search Knowledge Base</button>
+          <button onclick="testHours()" class="btn btn-secondary">🕐 Check Business Hours</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="card">
+      <div class="card-header">
+        <h2>Test Results</h2>
+      </div>
+      <div class="card-body">
+        <div id="results">
+          <p class="text-muted">Run a test above to see results...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="card">
+      <div class="card-header">
+        <h2>Manage Knowledge</h2>
+      </div>
+      <div class="card-body">
+        <div class="action-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <a href="/admin/tenants/<%= tenant.id %>/faqs" class="action-card">
+            <div class="action-icon">📋</div>
+            <div class="action-label">Manage FAQs</div>
+          </a>
+          <a href="/admin/tenants/<%= tenant.id %>/knowledge" class="action-card">
+            <div class="action-icon">📚</div>
+            <div class="action-label">Manage Knowledge Base</div>
+          </a>
+          <a href="/admin/tenants/<%= tenant.id %>/flows" class="action-card">
+            <div class="action-icon">🔄</div>
+            <div class="action-label">Manage Call Flows</div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; <%= new Date().getFullYear() %> AI Voice Receptionist. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script>
+    const tenantId = '<%= tenant.id %>';
+
+    // Load statistics
+    async function loadStats() {
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/test/stats`);
+        const data = await res.json();
+        
+        if (data.success) {
+          document.getElementById('faqCount').textContent = data.stats.faqCount;
+          document.getElementById('kbCount').textContent = data.stats.knowledgeBaseCount;
+          document.getElementById('flowCount').textContent = data.stats.callFlowCount;
+        }
+      } catch (error) {
+        console.error('Failed to load stats:', error);
+      }
+    }
+
+    // Test FAQ search
+    async function testFAQ() {
+      const query = document.getElementById('testQuery').value.trim();
+      if (!query) {
+        alert('Please enter a question');
+        return;
+      }
+
+      showLoading();
+
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/test/faq-search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query })
+        });
+
+        const data = await res.json();
+        displayResults('FAQ Search', data);
+      } catch (error) {
+        showError('Failed to search FAQs');
+      }
+    }
+
+    // Test knowledge base search
+    async function testKnowledge() {
+      const query = document.getElementById('testQuery').value.trim();
+      if (!query) {
+        alert('Please enter a question');
+        return;
+      }
+
+      showLoading();
+
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/test/knowledge-search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query })
+        });
+
+        const data = await res.json();
+        displayResults('Knowledge Base Search', data);
+      } catch (error) {
+        showError('Failed to search knowledge base');
+      }
+    }
+
+    // Test business hours
+    async function testHours() {
+      showLoading();
+
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/test/business-hours`);
+        const data = await res.json();
+        displayResults('Business Hours Check', data);
+      } catch (error) {
+        showError('Failed to check business hours');
+      }
+    }
+
+    function showLoading() {
+      document.getElementById('results').innerHTML = '<p class="text-muted">⏳ Searching...</p>';
+    }
+
+    function showError(message) {
+      document.getElementById('results').innerHTML = `<div class="alert alert-error">${message}</div>`;
+    }
+
+    function displayResults(testType, data) {
+      const container = document.getElementById('results');
+      
+      if (!data.success) {
+        container.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+        return;
+      }
+
+      let html = `<div class="test-result">
+        <h3>${testType}</h3>`;
+
+      if (data.query) {
+        html += `<p><strong>Query:</strong> "${data.query}"</p>`;
+      }
+
+      const result = data.result;
+
+      if (result.found !== undefined) {
+        if (result.found) {
+          html += `<div class="result-success">
+            <div class="result-badge">✅ Match Found</div>`;
+          
+          if (result.question) {
+            html += `<div class="result-item"><strong>Question:</strong> ${escapeHtml(result.question)}</div>`;
+          }
+          
+          if (result.answer) {
+            html += `<div class="result-item"><strong>Answer:</strong> ${escapeHtml(result.answer)}</div>`;
+          }
+          
+          if (result.category) {
+            html += `<div class="result-item"><strong>Category:</strong> ${escapeHtml(result.category)}</div>`;
+          }
+          
+          html += `</div>`;
+        } else {
+          html += `<div class="result-notfound">
+            <div class="result-badge">❌ No Match</div>
+            <p>The AI couldn't find an answer to this question. Consider adding it to your FAQs or Knowledge Base.</p>
+          </div>`;
+        }
+      } else if (result.isOpen !== undefined) {
+        html += `<div class="result-success">
+          <div class="result-badge">${result.isOpen ? '✅ Open' : '🔒 Closed'}</div>
+          <div class="result-item"><strong>Status:</strong> ${result.isOpen ? 'Currently Open' : 'Currently Closed'}</div>
+          <div class="result-item"><strong>Hours:</strong> ${escapeHtml(result.hours)}</div>
+        </div>`;
+      }
+
+      html += `</div>`;
+      container.innerHTML = html;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Load stats on page load
+    loadStats();
+  </script>
+
+  <style>
+    .button-group {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .test-result {
+      background: #f8f9fa;
+      padding: 1.5rem;
+      border-radius: 8px;
+      border: 2px solid #dee2e6;
+    }
+
+    .test-result h3 {
+      margin-top: 0;
+      color: #495057;
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .result-success {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      border-radius: 6px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+
+    .result-notfound {
+      background: #fff3cd;
+      border: 1px solid #ffeaa7;
+      border-radius: 6px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+
+    .result-badge {
+      font-weight: bold;
+      font-size: 1.1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .result-item {
+      margin-bottom: 0.75rem;
+      line-height: 1.6;
+    }
+
+    .result-item:last-child {
+      margin-bottom: 0;
+    }
+  </style>
+</body>
+</html>

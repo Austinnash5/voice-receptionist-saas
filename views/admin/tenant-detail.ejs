@@ -84,6 +84,11 @@
                 <div class="action-label">Call Flows</div>
                 <div class="action-desc">Configure call routing</div>
               </a>
+              <a href="/admin/tenants/<%= tenant.id %>/test" class="action-card" style="background: #e7f3ff; border-color: #007bff;">
+                <div class="action-icon">🧪</div>
+                <div class="action-label">Test AI Knowledge</div>
+                <div class="action-desc">See what your AI knows</div>
+              </a>
             </div>
           </div>
         </div>
@@ -287,7 +292,7 @@
 
     .action-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 1rem;
     }
 

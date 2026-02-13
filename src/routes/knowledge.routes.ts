@@ -13,6 +13,12 @@ import {
   updateFlow,
   deleteFlow,
 } from '../controllers/knowledgeController';
+import {
+  testFAQSearch,
+  testKnowledgeSearch,
+  testBusinessHours,
+  getStats,
+} from '../controllers/testController';
 
 const router = Router();
 
@@ -33,5 +39,11 @@ router.get('/tenant/:tenantId/flows', listFlows);
 router.post('/tenant/:tenantId/flows', createFlow);
 router.put('/tenant/:tenantId/flows/:flowId', updateFlow);
 router.delete('/tenant/:tenantId/flows/:flowId', deleteFlow);
+
+// Test/Debug routes
+router.post('/tenant/:tenantId/test/faq-search', testFAQSearch);
+router.post('/tenant/:tenantId/test/knowledge-search', testKnowledgeSearch);
+router.get('/tenant/:tenantId/test/business-hours', testBusinessHours);
+router.get('/tenant/:tenantId/test/stats', getStats);
 
 export default router;

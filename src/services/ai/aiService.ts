@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { env } from '../../config/env';
 import { CallContext, AIResponse } from '../../types';
+import { searchFAQs, lookupKnowledgeBase, getBusinessHoursStatus } from './toolFunctions';
 
 class OpenAIService {
   private client: OpenAI;
@@ -12,20 +13,157 @@ class OpenAIService {
   }
 
   /**
-   * General chat completion with context
+   * Define available tools/functions for the AI
+   */
+  private getTools(): OpenAI.ChatCompletionTool[] {
+    return [
+      {
+        type: 'function',
+        function: {
+          name: 'search_faqs',
+          description: 'Search frequently asked questions for quick answers about common topics like pricing, hours, services, etc.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'The question or topic to search for in FAQs',
+              },
+            },
+            required: ['query'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'search_knowledge_base',
+          description: 'Search the detailed knowledge base for in-depth information about products, services, policies, or procedures.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'The topic or question to look up in the knowledge base',
+              },
+            },
+            required: ['query'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'check_business_hours',
+          description: 'Check if the business is currently open and get the operating hours.',
+          parameters: {
+            type: 'object',
+            properties: {},
+            required: [],
+          },
+        },
+      },
+    ];
+  }
+
+  /**
+   * Execute a tool/function call
+   */
+  private async executeTool(
+    functionName: string,
+    args: any,
+    context: CallContext
+  ): Promise<string> {
+    try {
+      switch (functionName) {
+        case 'search_faqs': {
+          const result = await searchFAQs(context.tenantId, args.query);
+          if (result.found) {
+            return `FAQ Match - Q: ${result.question}\nA: ${result.answer}${result.category ? `\nCategory: ${result.category}` : ''}`;
+          }
+          return 'No matching FAQ found. Try searching the knowledge base or ask me to connect you with someone who can help.';
+        }
+
+        case 'search_knowledge_base': {
+          const result = await lookupKnowledgeBase(context.tenantId, args.query);
+          if (result.found) {
+            return `Knowledge Base: ${result.answer}${result.category ? `\nCategory: ${result.category}` : ''}`;
+          }
+          return 'No information found in knowledge base. I can connect you with someone who can help with this.';
+        }
+
+        case 'check_business_hours': {
+          const result = await getBusinessHoursStatus(context.tenantId);
+          return `Business is currently ${result.isOpen ? 'OPEN' : 'CLOSED'}. Hours: ${result.hours}`;
+        }
+
+        default:
+          return `Unknown function: ${functionName}`;
+      }
+    } catch (error) {
+      console.error(`Error executing tool ${functionName}:`, error);
+      return `Error executing ${functionName}`;
+    }
+  }
+
+  /**
+   * General chat completion with context and tool calling
    */
   async chat(context: CallContext, userMessage: string): Promise<AIResponse> {
     try {
       const messages = this.buildMessages(context, userMessage);
+      const tools = this.getTools();
 
-      const completion = await this.client.chat.completions.create({
+      // First completion - may request function calls
+      let completion = await this.client.chat.completions.create({
         model: env.OPENAI_MODEL,
         messages,
+        tools,
+        tool_choice: 'auto', // Let AI decide when to use tools
         temperature: 0.7,
         max_tokens: 150,
       });
 
-      const responseText = completion.choices[0]?.message?.content || 
+      let responseMessage = completion.choices[0].message;
+
+      // Handle function calls if AI requested them
+      if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
+        // Add AI's response with tool calls to messages
+        messages.push(responseMessage);
+
+        // Execute each tool call
+        for (const toolCall of responseMessage.tool_calls) {
+          const functionName = toolCall.function.name;
+          const functionArgs = JSON.parse(toolCall.function.arguments);
+
+          console.log(`🔧 AI calling tool: ${functionName}`, functionArgs);
+
+          const functionResult = await this.executeTool(
+            functionName,
+            functionArgs,
+            context
+          );
+
+          // Add function result to messages
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: functionResult,
+          });
+        }
+
+        // Get final response from AI using function results
+        completion = await this.client.chat.completions.create({
+          model: env.OPENAI_MODEL,
+          messages,
+          temperature: 0.7,
+          max_tokens: 150,
+        });
+
+        responseMessage = completion.choices[0].message;
+      }
+
+      const responseText = responseMessage.content || 
         "I'm sorry, I didn't understand that.";
 
       return {
@@ -98,10 +236,21 @@ class OpenAIService {
       {
         role: 'system',
         content: `You are a professional, friendly, and helpful AI receptionist. 
-        You answer questions clearly and concisely. 
-        If you don't know something, offer to connect the caller with someone who can help.
-        Keep responses brief (1-2 sentences).
-        Current state: ${context.state}`,
+
+Your capabilities:
+- Answer questions using the FAQ database (search_faqs)
+- Look up detailed information in the knowledge base (search_knowledge_base)  
+- Check current business hours and status (check_business_hours)
+
+Guidelines:
+1. When asked about common topics (hours, pricing, services), use search_faqs first
+2. For detailed or specific questions, use search_knowledge_base
+3. Always be conversational and natural - don't mention "searching database"
+4. If you don't know something and can't find it, offer to connect them with someone who can help
+5. Keep responses brief (1-2 sentences) and phone-appropriate
+6. Be proactive - if someone asks about services, search for that information
+
+Current state: ${context.state}`,
       },
     ];
 

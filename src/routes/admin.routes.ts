@@ -14,6 +14,7 @@ import {
   getFAQsPage,
   getKnowledgePage,
   getFlowsPage,
+  getTestKnowledgePage,
 } from '../controllers/adminController';
 
 const router = express.Router();
@@ -43,5 +44,6 @@ router.post('/numbers/:id/delete', unassignNumber);
 router.get('/tenants/:tenantId/faqs', getFAQsPage);
 router.get('/tenants/:tenantId/knowledge', getKnowledgePage);
 router.get('/tenants/:tenantId/flows', getFlowsPage);
+router.get('/tenants/:tenantId/test', getTestKnowledgePage);
 
 export default router;

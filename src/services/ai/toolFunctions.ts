@@ -67,6 +67,71 @@ export async function getBusinessHoursStatus(tenantId: string): Promise<{
 }
 
 /**
+ * Search FAQs for quick answers
+ */
+export async function searchFAQs(
+  tenantId: string,
+  query: string
+): Promise<{
+  found: boolean;
+  question: string;
+  answer: string;
+  category?: string;
+}> {
+  try {
+    const lowerQuery = query.toLowerCase();
+
+    // Get active FAQs ordered by order field
+    const faqs = await prisma.fAQ.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+      },
+      orderBy: [
+        { category: 'asc' },
+        { order: 'asc' },
+      ],
+    });
+
+    // Search through FAQs for matching keywords
+    for (const faq of faqs) {
+      const questionLower = faq.question.toLowerCase();
+      const answerLower = faq.answer.toLowerCase();
+      
+      // Split query into words for better matching
+      const queryWords = lowerQuery.split(' ').filter(w => w.length > 3);
+      
+      // Check if any query words match the question
+      const hasMatch = queryWords.some(word => 
+        questionLower.includes(word) || answerLower.includes(word)
+      );
+
+      if (hasMatch) {
+        return {
+          found: true,
+          question: faq.question,
+          answer: faq.answer,
+          category: faq.category || undefined,
+        };
+      }
+    }
+
+    return {
+      found: false,
+      question: '',
+      answer: '',
+    };
+  } catch (error) {
+    console.error('Error searching FAQs:', error);
+    return {
+      found: false,
+      question: '',
+      answer: '',
+    };
+  }
+}
+
+/**
  * Search knowledge base for answer
  */
 export async function lookupKnowledgeBase(
@@ -91,21 +156,41 @@ export async function lookupKnowledgeBase(
       },
     });
 
-    // Simple keyword matching
+    // Simple keyword matching with scoring
+    let bestMatch: any = null;
+    let bestScore = 0;
+
     for (const entry of entries) {
       const keywords = entry.keywords.map((k: string) => k.toLowerCase());
       const questionWords = entry.question.toLowerCase().split(' ');
+      let score = 0;
 
-      const hasMatch = keywords.some((keyword: string) => lowerQuery.includes(keyword)) ||
-        questionWords.some((word: string) => word.length > 3 && lowerQuery.includes(word));
+      // Score based on keyword matches
+      keywords.forEach((keyword: string) => {
+        if (lowerQuery.includes(keyword)) {
+          score += 3; // Keywords are most important
+        }
+      });
 
-      if (hasMatch) {
-        return {
-          found: true,
-          answer: entry.answer,
-          category: entry.category,
-        };
+      // Score based on question word matches
+      questionWords.forEach((word: string) => {
+        if (word.length > 3 && lowerQuery.includes(word)) {
+          score += 1;
+        }
+      });
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = entry;
       }
+    }
+
+    if (bestMatch && bestScore > 0) {
+      return {
+        found: true,
+        answer: bestMatch.answer,
+        category: bestMatch.category,
+      };
     }
 
     return {
@@ -206,5 +291,35 @@ export async function attemptTransfer(
   } catch (error) {
     console.error('Error attempting transfer:', error);
     return null;
+  }
+}
+
+/**
+ * Get knowledge statistics for a tenant
+ */
+export async function getKnowledgeStats(tenantId: string): Promise<{
+  faqCount: number;
+  knowledgeBaseCount: number;
+  callFlowCount: number;
+}> {
+  try {
+    const [faqCount, knowledgeBaseCount, callFlowCount] = await Promise.all([
+      prisma.fAQ.count({ where: { tenantId, isActive: true } }),
+      prisma.knowledgeBaseEntry.count({ where: { tenantId, isActive: true } }),
+      prisma.callFlow.count({ where: { tenantId, isActive: true } }),
+    ]);
+
+    return {
+      faqCount,
+      knowledgeBaseCount,
+      callFlowCount,
+    };
+  } catch (error) {
+    console.error('Error fetching knowledge stats:', error);
+    return {
+      faqCount: 0,
+      knowledgeBaseCount: 0,
+      callFlowCount: 0,
+    };
   }
 }
