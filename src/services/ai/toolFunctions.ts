@@ -11,22 +11,31 @@ export async function getBusinessHoursStatus(tenantId: string): Promise<{
 }> {
   try {
     const now = new Date();
-    const dayOfWeek = now.getDay(); // 0 = Sunday
 
-    // Build start/end of day without mutating `now`
-    const startOfDay = new Date(now);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(now);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Load schedule to determine timezone (default to Pacific if none configured)
+    const allHours = await prisma.businessHours.findMany({
+      where: { tenantId },
+      orderBy: { dayOfWeek: 'asc' },
+    });
+
+    const timezone = allHours[0]?.timezone || 'America/Los_Angeles';
+
+    // Convert "now" into the tenant's timezone context
+    const zonedNow = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+    const dayOfWeek = zonedNow.getDay(); // 0 = Sunday in tenant timezone
+
+    // Build date-only value for holiday lookup (match DATE column)
+    const holidayDate = new Date(Date.UTC(
+      zonedNow.getFullYear(),
+      zonedNow.getMonth(),
+      zonedNow.getDate()
+    ));
 
     // Check for holiday closure
     const holiday = await prisma.holidayHours.findFirst({
       where: {
         tenantId,
-        date: {
-          gte: startOfDay,
-          lt: endOfDay,
-        },
+        date: holidayDate,
       },
     });
 
@@ -49,12 +58,6 @@ export async function getBusinessHoursStatus(tenantId: string): Promise<{
       },
     });
 
-    // Get full week schedule
-    const allHours = await prisma.businessHours.findMany({
-      where: { tenantId },
-      orderBy: { dayOfWeek: 'asc' },
-    });
-
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const schedule = allHours
       .map(h => {
@@ -73,7 +76,7 @@ export async function getBusinessHoursStatus(tenantId: string): Promise<{
     }
 
     // Check if current time is within open hours
-    const currentTime = now.toTimeString().slice(0, 5); // HH:MM
+    const currentTime = zonedNow.toTimeString().slice(0, 5); // HH:MM in tenant timezone
     const isOpen = currentTime >= businessHour.openTime && currentTime < businessHour.closeTime;
 
     return {
