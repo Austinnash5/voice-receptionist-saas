@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Tenant - AI Voice Receptionist</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <a href="/">🤖 AI Voice Receptionist</a>
+      </div>
+      <ul class="nav-menu">
+        <li><a href="/admin/dashboard">Dashboard</a></li>
+        <li><a href="/admin/tenants" class="active">Tenants</a></li>
+        <li><a href="/admin/numbers">Phone Numbers</a></li>
+        <li class="user-menu">
+          <span><%= user.email %></span>
+          <a href="/logout" class="btn btn-sm">Logout</a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <div class="container">
+      <div class="form-header">
+        <h1>Create New Tenant</h1>
+        <a href="/admin/tenants" class="btn">← Back to Tenants</a>
+      </div>
+
+      <div class="form-container">
+        <form method="POST" action="/admin/tenants" class="form">
+          <div class="form-group">
+            <label for="name">Business Name *</label>
+            <input 
+              type="text" 
+              id="name" 
+              name="name" 
+              required 
+              placeholder="e.g., ABC Corporation"
+              class="form-control"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="slug">Slug (URL identifier) *</label>
+            <input 
+              type="text" 
+              id="slug" 
+              name="slug" 
+              required 
+              pattern="[a-z0-9-]+"
+              placeholder="e.g., abc-corp"
+              class="form-control"
+            >
+            <small class="form-hint">Lowercase letters, numbers, and hyphens only</small>
+          </div>
+
+          <div class="form-group">
+            <label for="adminEmail">Admin Email *</label>
+            <input 
+              type="email" 
+              id="adminEmail" 
+              name="adminEmail" 
+              required 
+              placeholder="admin@example.com"
+              class="form-control"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="adminPassword">Admin Password *</label>
+            <input 
+              type="password" 
+              id="adminPassword" 
+              name="adminPassword" 
+              required 
+              minlength="8"
+              placeholder="Minimum 8 characters"
+              class="form-control"
+            >
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Create Tenant</button>
+            <a href="/admin/tenants" class="btn btn-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; <%= new Date().getFullYear() %> AI Voice Receptionist. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+  <script>
+    // Auto-generate slug from name
+    document.getElementById('name').addEventListener('input', function(e) {
+      const slug = e.target.value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-');
+      document.getElementById('slug').value = slug;
+    });
+  </script>
+</body>
+</html>
