@@ -13,13 +13,19 @@ export async function getBusinessHoursStatus(tenantId: string): Promise<{
     const now = new Date();
     const dayOfWeek = now.getDay(); // 0 = Sunday
 
+    // Build start/end of day without mutating `now`
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(now);
+    endOfDay.setHours(23, 59, 59, 999);
+
     // Check for holiday closure
     const holiday = await prisma.holidayHours.findFirst({
       where: {
         tenantId,
         date: {
-          gte: new Date(now.setHours(0, 0, 0, 0)),
-          lt: new Date(now.setHours(23, 59, 59, 999)),
+          gte: startOfDay,
+          lt: endOfDay,
         },
       },
     });

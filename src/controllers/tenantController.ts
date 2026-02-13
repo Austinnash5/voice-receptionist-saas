@@ -7,6 +7,7 @@ import {
   deleteHolidayForTenant,
   saveBusinessHoursForTenant,
 } from '../services/tenant/scheduleService';
+import { getAllTimezones } from '../config/timezones';
 
 /**
  * Tenant Dashboard
@@ -333,6 +334,8 @@ export async function getSettings(req: Request, res: Response) {
       }),
     ]);
 
+    const timezones = getAllTimezones();
+
     res.render('tenant/settings', {
       user: req.user,
       tenant: req.tenant,
@@ -342,6 +345,7 @@ export async function getSettings(req: Request, res: Response) {
       departments,
       transferTargets,
       knowledgeBase,
+      timezones,
     });
   } catch (error) {
     console.error('Get settings error:', error);

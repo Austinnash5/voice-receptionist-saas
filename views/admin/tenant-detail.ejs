@@ -202,7 +202,12 @@
             </table>
             <div class="form-group" style="margin-top: 1rem;">
               <label>Timezone</label>
-              <input type="text" name="timezone" value="<%= tenant.businessHours.length ? tenant.businessHours[0].timezone : 'America/Los_Angeles' %>" required>
+              <% const tenantTimezone = tenant.businessHours.length ? tenant.businessHours[0].timezone : 'America/Los_Angeles'; %>
+              <select name="timezone" required>
+                <% timezones.forEach(tz => { %>
+                  <option value="<%= tz %>" <%= tz === tenantTimezone ? 'selected' : '' %>><%= tz %></option>
+                <% }); %>
+              </select>
             </div>
             <button type="submit" class="btn btn-primary">Save Business Hours</button>
           </form>

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../db/prisma';
 import { hashPassword } from '../middleware/auth';
+import { getAllTimezones } from '../config/timezones';
 import {
   addHolidayForTenant,
   BusinessHourUpdate,
@@ -173,9 +174,12 @@ export async function getTenant(req: Request, res: Response) {
       return res.status(404).send('Tenant not found');
     }
 
+    const timezones = getAllTimezones();
+
     res.render('admin/tenant-detail', {
       user: req.user,
       tenant,
+      timezones,
     });
   } catch (error) {
     console.error('Get tenant error:', error);

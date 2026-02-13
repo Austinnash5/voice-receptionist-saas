@@ -75,7 +75,12 @@
 
           <div class="form-group">
             <label>Timezone</label>
-            <input type="text" name="timezone" value="<%= businessHours.length ? businessHours[0].timezone : 'America/Los_Angeles' %>" placeholder="America/Los_Angeles" required>
+            <% const currentTimezone = businessHours.length ? businessHours[0].timezone : 'America/Los_Angeles'; %>
+            <select name="timezone" required>
+              <% timezones.forEach(tz => { %>
+                <option value="<%= tz %>" <%= tz === currentTimezone ? 'selected' : '' %>><%= tz %></option>
+              <% }); %>
+            </select>
           </div>
 
           <button type="submit" class="btn btn-primary">Save Business Hours</button>
