@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import { requireAuth, loginUser } from '../middleware/auth';
+import prisma from '../db/prisma';
 import twilioRoutes from './twilio.routes';
 import adminRoutes from './admin.routes';
 import tenantRoutes from './tenant.routes';
@@ -63,6 +64,70 @@ router.get('/logout', (req: Request, res: Response) => {
 // Health check
 router.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Database status check (requires auth)
+router.get('/db-status', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const checks = {
+      database: false,
+      tables: {
+        tenants: false,
+        users: false,
+        faqs: false,
+        knowledgeBase: false,
+        callFlows: false,
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    // Check database connection
+    await prisma.$queryRaw`SELECT 1`;
+    checks.database = true;
+
+    // Check each table exists
+    try {
+      await prisma.tenant.findFirst();
+      checks.tables.tenants = true;
+    } catch (e) {}
+
+    try {
+      await prisma.user.findFirst();
+      checks.tables.users = true;
+    } catch (e) {}
+
+    try {
+      await prisma.fAQ.findFirst();
+      checks.tables.faqs = true;
+    } catch (e) {}
+
+    try {
+      await prisma.knowledgeBaseEntry.findFirst();
+      checks.tables.knowledgeBase = true;
+    } catch (e) {}
+
+    try {
+      await prisma.callFlow.findFirst();
+      checks.tables.callFlows = true;
+    } catch (e) {}
+
+    const allTablesExist = Object.values(checks.tables).every(v => v);
+    const status = allTablesExist ? 'healthy' : 'needs_migration';
+
+    res.json({
+      status,
+      checks,
+      message: allTablesExist 
+        ? 'All tables exist' 
+        : 'Some tables are missing. Run: docker compose run app npx prisma db push',
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: 'Database connection failed',
+      message: String(error),
+    });
+  }
 });
 
 // Twilio webhooks (public)

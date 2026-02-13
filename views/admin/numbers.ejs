@@ -47,7 +47,9 @@
             <label>Tenant</label>
             <select name="tenantId" required>
               <option value="">Select Tenant</option>
-              <% /* You would need to pass tenants list */ %>
+              <% tenants.forEach(tenant => { %>
+                <option value="<%= tenant.id %>"><%= tenant.name %></option>
+              <% }); %>
             </select>
           </div>
           <button type="submit" class="btn btn-primary">Assign Number</button>
