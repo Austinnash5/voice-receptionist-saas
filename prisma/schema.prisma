@@ -164,8 +164,37 @@ model ReceptionistConfig {
 
   // Relations
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ivrMenuOptions IVRMenuOption[]
 
   @@index([tenantId])
+}
+
+model IVRMenuOption {
+  id                    String   @id @default(uuid())
+  receptionistConfigId  String
+  digit                 String   // "1", "2", "3", etc.
+  label                 String   // "Texas Location", "Arizona Location"
+  action                IVRAction @default(AI_MODE)
+  transferNumber        String?  // Phone number to transfer to
+  departmentId          String?  // Department to route to
+  customMessage         String?  @db.Text // Custom message before action
+  order                 Int      @default(1)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  receptionistConfig ReceptionistConfig @relation(fields: [receptionistConfigId], references: [id], onDelete: Cascade)
+
+  @@unique([receptionistConfigId, digit])
+  @@index([receptionistConfigId])
+}
+
+enum IVRAction {
+  AI_MODE        // Continue to AI receptionist
+  TRANSFER       // Transfer to specific number
+  DEPARTMENT     // Route to department
+  VOICEMAIL      // Go to voicemail
+  CUSTOM_MESSAGE // Play message and end
 }
 
 model BusinessHours {
@@ -299,6 +328,7 @@ model CallSession {
   transferAttempted Boolean   @default(false)
   transferSuccess   Boolean   @default(false)
   leadCaptured    Boolean     @default(false)
+  metadata        Json?       // Store additional call data (IVR selection, etc.)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 

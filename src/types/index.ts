@@ -1,4 +1,4 @@
-import { CallState, CallStatus, UserRole } from '@prisma/client';
+import { CallState, CallStatus, UserRole, ReceptionistConfig } from '@prisma/client';
 
 // ============================================
 // AI SERVICE TYPES
@@ -12,11 +12,15 @@ export interface CallContext {
   toNumber: string;
   state: CallState;
   conversationHistory: ConversationTurn[];
+  config?: ReceptionistConfig;
   metadata: {
     transferAttempts?: number;
     silentCount?: number;
     turnCount?: number;
     capturedData?: Partial<LeadData>;
+    ivrSelection?: string;
+    ivrLabel?: string;
+    [key: string]: any;
   };
 }
 

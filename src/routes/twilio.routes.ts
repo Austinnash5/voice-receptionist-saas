@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   handleIncomingCall,
+  handleIVR,
   handleGather,
   handleTransferStatus,
   handleCallStatus,
@@ -11,6 +12,7 @@ const router = express.Router();
 
 // Twilio Voice Webhooks
 router.post('/voice', handleIncomingCall);
+router.post('/ivr', handleIVR);
 router.post('/gather', handleGather);
 router.post('/transfer-status', handleTransferStatus);
 router.post('/call-status', handleCallStatus);

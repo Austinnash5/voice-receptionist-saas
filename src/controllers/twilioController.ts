@@ -27,7 +27,13 @@ export async function handleIncomingCall(req: Request, res: Response) {
       include: {
         tenant: {
           include: {
-            receptionistConfig: true,
+            receptionistConfig: {
+              include: {
+                ivrMenuOptions: {
+                  orderBy: { order: 'asc' },
+                },
+              },
+            },
           },
         },
       },
@@ -40,9 +46,7 @@ export async function handleIncomingCall(req: Request, res: Response) {
     }
 
     const config = twilioNumber.tenant.receptionistConfig;
-    const greetingMessage = config?.greetingMessage || 
-      'Thank you for calling. This call may be recorded. How can I help you today?';
-
+    
     // Create call session
     const session = await callService.createCallSession({
       tenantId: twilioNumber.tenantId,
@@ -55,7 +59,28 @@ export async function handleIncomingCall(req: Request, res: Response) {
 
     console.log(`✅ Created call session: ${session.id}`);
 
-    // Return greeting TwiML
+    // Check if IVR is enabled
+    if (config?.enableIVR && config.ivrMenuOptions && config.ivrMenuOptions.length > 0) {
+      // Play IVR menu
+      const ivrPrompt = config.ivrMenuPrompt || 'Welcome. Please select from the following options.';
+      const ivrUrl = `${env.BASE_URL}/twilio/ivr`;
+      
+      let twiml = '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>';
+      twiml += `<Gather input=\"dtmf\" timeout=\"5\" numDigits=\"1\" action=\"${ivrUrl}\" method=\"POST\">`;
+      twiml += `<Say>${ivrPrompt}</Say>`;
+      twiml += '</Gather>';
+      twiml += '<Say>I did not receive a selection. Please call back and make a choice.</Say>';
+      twiml += '<Hangup/>';
+      twiml += '</Response>';
+      
+      res.type('text/xml');
+      return res.send(twiml);
+    }
+
+    // No IVR - proceed to AI greeting
+    const greetingMessage = config?.greetingMessage || 
+      'Thank you for calling. This call may be recorded. How can I help you today?';
+
     const gatherUrl = `${env.BASE_URL}/twilio/gather`;
     const twiml = createGreetingTwiML(greetingMessage, gatherUrl);
 
@@ -216,6 +241,126 @@ async function handleTransferAction(
     
     res.type('text/xml');
     res.send(twiml);
+  }
+}
+
+/**
+ * Handle IVR menu digit selection
+ */
+export async function handleIVR(req: Request, res: Response) {
+  try {
+    const { CallSid, Digits, To } = req.body;
+
+    console.log(`🔢 IVR selection for ${CallSid}: Digit ${Digits}`);
+
+    // Find tenant and IVR configuration
+    const twilioNumber = await prisma.twilioNumber.findUnique({
+      where: { phoneNumber: To },
+      include: {
+        tenant: {
+          include: {
+            receptionistConfig: {
+              include: {
+                ivrMenuOptions: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!twilioNumber || !twilioNumber.tenant || !twilioNumber.tenant.receptionistConfig) {
+      res.type('text/xml');
+      return res.send('<Response><Say>Configuration error.</Say><Hangup/></Response>');
+    }
+
+    const config = twilioNumber.tenant.receptionistConfig;
+    const menuOption = config.ivrMenuOptions.find(opt => opt.digit === Digits);
+
+    if (!menuOption) {
+      // Invalid selection
+      res.type('text/xml');
+      return res.send('<Response><Say>Invalid selection. Goodbye.</Say><Hangup/></Response>');
+    }
+
+    // Update session metadata with IVR selection
+    const session = await callService.getCallSessionByCallSid(CallSid);
+    if (session) {
+      const currentMetadata = (session.metadata as any) || {};
+      await prisma.callSession.update({
+        where: { id: session.id },
+        data: {
+          metadata: {
+            ...currentMetadata,
+            ivrSelection: Digits,
+            ivrLabel: menuOption.label,
+          },
+        },
+      });
+    }
+
+    console.log(`✅ IVR selection: ${menuOption.label} (${menuOption.action})`);
+
+    // Handle action
+    let twiml = '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>';
+
+    if (menuOption.customMessage) {
+      twiml += `<Say>${menuOption.customMessage}</Say>`;
+    }
+
+    switch (menuOption.action) {
+      case 'TRANSFER':
+        if (menuOption.transferNumber) {
+          twiml += `<Dial timeout=\"30\" action=\"${env.BASE_URL}/twilio/transfer-status\" method=\"POST\">`;
+          twiml += `<Number>${menuOption.transferNumber}</Number>`;
+          twiml += '</Dial>';
+          twiml += '<Say>The call could not be completed. Please try again later.</Say>';
+        } else {
+          twiml += '<Say>Transfer number not configured.</Say>';
+        }
+        break;
+
+      case 'AI_MODE':
+        // Continue to AI receptionist
+        const greetingMessage = config.greetingMessage || 'How can I help you today?';
+        const gatherUrl = `${env.BASE_URL}/twilio/gather`;
+        twiml += `<Gather input=\"speech\" timeout=\"3\" speechTimeout=\"auto\" action=\"${gatherUrl}\" method=\"POST\">`;
+        twiml += `<Say>${greetingMessage}</Say>`;
+        twiml += '</Gather>';
+        twiml += '<Say>I did not hear anything. Goodbye.</Say>';
+        break;
+
+      case 'VOICEMAIL':
+        const voicemailPrompt = config.voicemailPrompt || 
+          'Please leave a message after the beep, and we will get back to you soon.';
+        twiml += `<Say>${voicemailPrompt}</Say>`;
+        twiml += '<Record maxLength=\"120\" transcribe=\"true\" playBeep=\"true\"/>';
+        twiml += '<Say>Thank you for your message. Goodbye.</Say>';
+        break;
+
+      case 'CUSTOM_MESSAGE':
+        // Message already played, just hang up
+        break;
+
+      case 'DEPARTMENT':
+        // For now, route to AI with department context
+        twiml += `<Gather input=\"speech\" timeout=\"3\" speechTimeout=\"auto\" action=\"${env.BASE_URL}/twilio/gather\" method=\"POST\">`;
+        twiml += `<Say>Connecting you to ${menuOption.label}. How can we help you?</Say>`;
+        twiml += '</Gather>';
+        break;
+
+      default:
+        twiml += '<Say>Invalid action.</Say>';
+    }
+
+    twiml += '<Hangup/></Response>';
+
+    res.type('text/xml');
+    res.send(twiml);
+  } catch (error) {
+    console.error('IVR handler error:', error);
+    res.type('text/xml');
+    res.send('<Response><Say>An error occurred. Please try again later.</Say><Hangup/></Response>');
   }
 }
 

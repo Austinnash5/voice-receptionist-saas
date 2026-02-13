@@ -2,11 +2,12 @@ import prisma from '../../db/prisma';
 import { LeadData } from '../../types';
 
 /**
- * Check if business is currently open
+ * Check if business is currently open and get complete schedule
  */
 export async function getBusinessHoursStatus(tenantId: string): Promise<{
   isOpen: boolean;
   hours: string;
+  fullSchedule?: string;
 }> {
   try {
     const now = new Date();
@@ -42,10 +43,26 @@ export async function getBusinessHoursStatus(tenantId: string): Promise<{
       },
     });
 
+    // Get full week schedule
+    const allHours = await prisma.businessHours.findMany({
+      where: { tenantId },
+      orderBy: { dayOfWeek: 'asc' },
+    });
+
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const schedule = allHours
+      .map(h => {
+        const dayName = dayNames[h.dayOfWeek];
+        if (!h.isOpen) return `${dayName}: Closed`;
+        return `${dayName}: ${h.openTime} to ${h.closeTime}`;
+      })
+      .join(', ');
+
     if (!businessHour || !businessHour.isOpen) {
       return {
         isOpen: false,
         hours: 'Closed today',
+        fullSchedule: schedule || undefined,
       };
     }
 
@@ -56,6 +73,7 @@ export async function getBusinessHoursStatus(tenantId: string): Promise<{
     return {
       isOpen,
       hours: `${businessHour.openTime} to ${businessHour.closeTime}`,
+      fullSchedule: schedule || undefined,
     };
   } catch (error) {
     console.error('Error checking business hours:', error);

@@ -386,25 +386,78 @@ export class StateMachine {
    * Extract name from input
    */
   private extractName(input: string): string {
-    // Simple extraction - in production, use NER or more sophisticated parsing
-    const cleaned = input.replace(/my name is|i'm|this is/gi, '').trim();
-    return cleaned || 'Customer';
+    // Remove common prefixes
+    let cleaned = input
+      .replace(/my name is|i'm|i am|this is|it's|it is/gi, '')
+      .replace(/\b(mr|mrs|ms|dr|miss)\.?\s/gi, '')
+      .trim();
+    
+    // If it looks like a phone number, return "Customer"
+    if (/^[\d\s\(\)\-\+]+$/.test(cleaned)) {
+      return 'Customer';
+    }
+    
+    // Take first few words as name
+    const words = cleaned.split(/\s+/);
+    const name = words.slice(0, 3).join(' ');
+    
+    return name || 'Customer';
   }
 
   /**
    * Extract phone from input
    */
   private extractPhone(input: string): string {
-    // Extract digits
-    const digits = input.replace(/\D/g, '');
+    // Remove any text that's clearly not a phone number
+    const cleaned = input.replace(/my (phone |cell |number |)?(is|number is)?(\s+)?/gi, '');
     
+    // Extract digits
+    const digits = cleaned.replace(/\D/g, '');
+    
+    // Validate length
+    if (digits.length === 10) {
+      return `+1${digits}`;
+    } else if (digits.length === 11 && digits.startsWith('1')) {
+      return `+${digits}`;
+    } else if (digits.length > 0) {
+      // Store whatever digits we got
+      return digits;
+    }
+    
+    // If no digits found, check if they said it out (e.g., "five five five one two three four")
+    const spoken = this.extractSpokenPhone(input);
+    if (spoken) return spoken;
+    
+    return 'not provided';
+  }
+
+  /**
+   * Extract phone number from spoken words (e.g., "five five five one two three four")
+   */
+  private extractSpokenPhone(input: string): string | null {
+    const lowerInput = input.toLowerCase();
+    const digitMap: { [key: string]: string } = {
+      'zero': '0', 'oh': '0', 'one': '1', 'two': '2', 'to': '2', 'too': '2',
+      'three': '3', 'four': '4', 'for': '4', 'five': '5', 'six': '6',
+      'seven': '7', 'eight': '8', 'ate': '8', 'nine': '9',
+    };
+
+    let digits = '';
+    const words = lowerInput.split(/\s+/);
+    
+    for (const word of words) {
+      if (digitMap[word]) {
+        digits += digitMap[word];
+      }
+    }
+
     if (digits.length === 10) {
       return `+1${digits}`;
     } else if (digits.length === 11 && digits.startsWith('1')) {
       return `+${digits}`;
     }
-    
-    return digits || 'not provided';
+
+    return null;
   }
 
   /**
