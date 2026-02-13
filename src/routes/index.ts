@@ -5,6 +5,7 @@ import twilioRoutes from './twilio.routes';
 import adminRoutes from './admin.routes';
 import tenantRoutes from './tenant.routes';
 import knowledgeRoutes from './knowledge.routes';
+import flowRoutes from './flow.routes';
 
 const router = express.Router();
 
@@ -137,5 +138,6 @@ router.use('/twilio', twilioRoutes);
 router.use('/admin', adminRoutes);
 router.use('/tenant', tenantRoutes);
 router.use('/api', requireAuth, knowledgeRoutes);
+router.use('/api', flowRoutes);
 
 export default router;

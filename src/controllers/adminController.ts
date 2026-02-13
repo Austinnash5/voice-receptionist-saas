@@ -370,13 +370,66 @@ export async function getFlowsPage(req: Request, res: Response) {
       return res.status(404).send('Tenant not found');
     }
 
-    res.render('admin/flows', {
+    res.render('admin/flow-list', {
       user: req.user,
       tenant,
     });
   } catch (error) {
     console.error('Flows page error:', error);
     res.status(500).send('Error loading flows page');
+  }
+}
+
+export async function getCreateFlowPage(req: Request, res: Response) {
+  try {
+    const { tenantId } = req.params;
+    
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      return res.status(404).send('Tenant not found');
+    }
+
+    res.render('admin/flow-builder', {
+      user: req.user,
+      tenant,
+      mode: 'create',
+      flow: null,
+    });
+  } catch (error) {
+    console.error('Create flow page error:', error);
+    res.status(500).send('Error loading create flow page');
+  }
+}
+
+export async function getEditFlowPage(req: Request, res: Response) {
+  try {
+    const { tenantId, flowId } = req.params;
+    
+    const [tenant, flow] = await Promise.all([
+      prisma.tenant.findUnique({ where: { id: tenantId } }),
+      prisma.callFlow.findUnique({ where: { id: flowId } }),
+    ]);
+
+    if (!tenant) {
+      return res.status(404).send('Tenant not found');
+    }
+
+    if (!flow) {
+      return res.status(404).send('Flow not found');
+    }
+
+    res.render('admin/flow-builder', {
+      user: req.user,
+      tenant,
+      mode: 'edit',
+      flow,
+    });
+  } catch (error) {
+    console.error('Edit flow page error:', error);
+    res.status(500).send('Error loading edit flow page');
   }
 }
 
