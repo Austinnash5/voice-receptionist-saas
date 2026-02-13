@@ -32,6 +32,8 @@ model Tenant {
   businessHours       BusinessHours[]
   holidayHours        HolidayHours[]
   knowledgeBase       KnowledgeBaseEntry[]
+  faqs                FAQ[]
+  callFlows           CallFlow[]
   callSessions        CallSession[]
   leads               Lead[]
   auditLogs           AuditLog[]
@@ -149,6 +151,14 @@ model ReceptionistConfig {
   maxTurns              Int      @default(20)
   enableRecording       Boolean  @default(true)
   enableLeadCapture     Boolean  @default(true)
+  
+  // IVR and Flow Settings
+  enableIVR             Boolean  @default(false)
+  ivrMenuPrompt         String?  @db.Text  // Main menu prompt
+  enableVoicemail       Boolean  @default(true)
+  voicemailPrompt       String?  @db.Text  // Voicemail greeting
+  voicemailFlowEnabled  Boolean  @default(false)  // AI handles voicemail
+  
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -215,6 +225,56 @@ model KnowledgeBaseEntry {
 
   @@index([tenantId])
   @@index([category])
+}
+
+// FAQ - Frequently Asked Questions
+model FAQ {
+  id          String   @id @default(uuid())
+  tenantId    String
+  question    String
+  answer      String   @db.Text
+  category    String?  // Optional grouping
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([category])
+}
+
+// Call Flow Configuration
+model CallFlow {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String   // e.g., "Main Menu", "After Hours", "Voicemail Flow"
+  flowType    FlowType @default(MAIN_MENU)
+  isActive    Boolean  @default(true)
+  priority    Int      @default(0)
+  
+  // Flow Configuration (JSON structure)
+  config      Json     // Stores the flow steps and logic
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([flowType])
+}
+
+enum FlowType {
+  MAIN_MENU
+  AFTER_HOURS
+  VOICEMAIL
+  SALES
+  SUPPORT
+  CUSTOM
 }
 
 // ============================================
