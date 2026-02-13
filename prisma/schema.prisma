@@ -298,12 +298,12 @@ model CallFlow {
 }
 
 enum FlowType {
-  MAIN_MENU
-  AFTER_HOURS
-  VOICEMAIL
-  SALES
-  SUPPORT
-  CUSTOM
+  MAIN_MENU      // Initial call greeting and menu
+  AFTER_HOURS    // When business is closed
+  NO_ANSWER      // When transfer/call isn't answered
+  VOICEMAIL      // Direct to voicemail
+  DEPARTMENT     // Department-specific menu (Sales, Service, etc.)
+  CUSTOM         // Custom flow for special cases
 }
 
 // ============================================

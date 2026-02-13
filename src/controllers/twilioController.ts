@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../db/prisma';
 import { callService } from '../services/call/callService';
+import { flowExecutor } from '../services/call/flowExecutor';
 import { stateMachine } from '../services/ai/stateMachine';
 import { attemptTransfer } from '../services/ai/toolFunctions';
 import { 
@@ -27,13 +28,7 @@ export async function handleIncomingCall(req: Request, res: Response) {
       include: {
         tenant: {
           include: {
-            receptionistConfig: {
-              include: {
-                ivrMenuOptions: {
-                  orderBy: { order: 'asc' },
-                },
-              },
-            },
+            receptionistConfig: true,
           },
         },
       },
@@ -45,11 +40,11 @@ export async function handleIncomingCall(req: Request, res: Response) {
       return res.send('<Response><Say>Sorry, this number is not configured.</Say><Hangup/></Response>');
     }
 
-    const config = twilioNumber.tenant.receptionistConfig;
+    const tenantId = twilioNumber.tenantId;
     
     // Create call session
     const session = await callService.createCallSession({
-      tenantId: twilioNumber.tenantId,
+      tenantId,
       twilioNumberId: twilioNumber.id,
       callSid: CallSid,
       fromNumber: From,
@@ -59,25 +54,36 @@ export async function handleIncomingCall(req: Request, res: Response) {
 
     console.log(`✅ Created call session: ${session.id}`);
 
-    // Check if IVR is enabled
-    if (config?.enableIVR && config.ivrMenuOptions && config.ivrMenuOptions.length > 0) {
-      // Play IVR menu
-      const ivrPrompt = config.ivrMenuPrompt || 'Welcome. Please select from the following options.';
-      const ivrUrl = `${env.BASE_URL}/twilio/ivr`;
-      
-      let twiml = '<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response>';
-      twiml += `<Gather input=\"dtmf\" timeout=\"5\" numDigits=\"1\" action=\"${ivrUrl}\" method=\"POST\">`;
-      twiml += `<Say>${ivrPrompt}</Say>`;
-      twiml += '</Gather>';
-      twiml += '<Say>I did not receive a selection. Please call back and make a choice.</Say>';
-      twiml += '<Hangup/>';
-      twiml += '</Response>';
-      
+    // Determine which flow to use
+    const flowType = await flowExecutor.determineFlowType(tenantId, {
+      isInitialCall: true,
+    });
+
+    console.log(`📋 Using flow type: ${flowType}`);
+
+    // Get the flow
+    const flow = await flowExecutor.getActiveFlow(tenantId, flowType);
+
+    if (flow) {
+      // Store current flow and step in session metadata
+      await prisma.callSession.update({
+        where: { id: session.id },
+        data: {
+          metadata: {
+            flowType,
+            currentStepId: flow.entryPoint,
+          },
+        },
+      });
+
+      // Execute the entry point step
+      const twiml = await flowExecutor.executeStep(flow, flow.entryPoint, tenantId, CallSid);
       res.type('text/xml');
       return res.send(twiml);
     }
 
-    // No IVR - proceed to AI greeting
+    // No flow configured - fall back to simple AI greeting
+    const config = twilioNumber.tenant.receptionistConfig;
     const greetingMessage = config?.greetingMessage || 
       'Thank you for calling. This call may be recorded. How can I help you today?';
 
@@ -479,5 +485,185 @@ export async function handleRecordingStatus(req: Request, res: Response) {
   } catch (error) {
     console.error('Recording status error:', error);
     res.sendStatus(500);
+  }
+}
+
+/**
+ * Handle flow menu digit gather
+ */
+export async function handleFlowGather(req: Request, res: Response) {
+  try {
+    const { CallSid, Digits } = req.body;
+
+    console.log(`🔢 Flow gather for ${CallSid}: Digit ${Digits}`);
+
+    // Get call session to find current flow and step
+    const session = await callService.getCallSessionByCallSid(CallSid);
+
+    if (!session || !session.metadata) {
+      res.type('text/xml');
+      return res.send('<Response><Say>Session error.</Say><Hangup/></Response>');
+    }
+
+    const metadata = session.metadata as any;
+    const flowType = metadata.flowType;
+    const currentStepId = metadata.currentStepId;
+
+    if (!flowType || !currentStepId) {
+      res.type('text/xml');
+      return res.send('<Response><Say>Flow configuration error.</Say><Hangup/></Response>');
+    }
+
+    // Get the flow
+    const flow = await flowExecutor.getActiveFlow(session.tenantId, flowType);
+
+    if (!flow) {
+      res.type('text/xml');
+      return res.send('<Response><Say>Flow not found.</Say><Hangup/></Response>');
+    }
+
+    // Handle the menu selection
+    const selection = await flowExecutor.handleMenuSelection(flow, currentStepId, Digits);
+
+    if (!selection) {
+      // Invalid selection
+      res.type('text/xml');
+      return res.send('<Response><Say>Invalid selection. Please try again.</Say><Hangup/></Response>');
+    }
+
+    // Update session with selection
+    await prisma.callSession.update({
+      where: { id: session.id },
+      data: {
+        metadata: {
+          ...metadata,
+          lastSelection: Digits,
+          currentStepId: selection.target,
+        },
+      },
+    });
+
+    // Execute the action
+    let twiml: string;
+
+    switch (selection.action) {
+      case 'goto':
+        if (selection.target) {
+          // Update current step and execute it
+          await prisma.callSession.update({
+            where: { id: session.id },
+            data: {
+              metadata: {
+                ...metadata,
+                currentStepId: selection.target,
+              },
+            },
+          });
+          twiml = await flowExecutor.executeStep(flow, selection.target, session.tenantId, CallSid);
+        } else {
+          twiml = '<Response><Say>Target step not found.</Say><Hangup/></Response>';
+        }
+        break;
+
+      case 'transfer':
+        if (selection.phoneNumber) {
+          twiml = '<?xml version="1.0" encoding="UTF-8"?><Response>';
+          twiml += '<Say>Transferring your call now. Please hold.</Say>';
+          twiml += `<Dial timeout="30" action="${env.BASE_URL}/twilio/transfer-status" method="POST">`;
+          twiml += `<Number>${selection.phoneNumber}</Number>`;
+          twiml += '</Dial>';
+          twiml += '<Say>The call could not be completed.</Say>';
+          twiml += '<Hangup/></Response>';
+        } else {
+          twiml = '<Response><Say>Transfer number not configured.</Say><Hangup/></Response>';
+        }
+        break;
+
+      case 'ai':
+        twiml = '<?xml version="1.0" encoding="UTF-8"?><Response>';
+        twiml += `<Gather input="speech" timeout="3" speechTimeout="auto" action="${env.BASE_URL}/twilio/gather" method="POST">`;
+        twiml += '<Say>How can I help you today?</Say>';
+        twiml += '</Gather>';
+        twiml += '<Say>I did not hear anything. Goodbye.</Say>';
+        twiml += '<Hangup/></Response>';
+        break;
+
+      case 'voicemail':
+        twiml = '<?xml version="1.0" encoding="UTF-8"?><Response>';
+        twiml += '<Say>Please leave a message after the beep.</Say>';
+        twiml += `<Record maxLength="120" transcribe="true" playBeep="true" transcribeCallback="${env.BASE_URL}/twilio/transcription"/>`;
+        twiml += '<Say>Thank you for your message. Goodbye.</Say>';
+        twiml += '<Hangup/></Response>';
+        break;
+
+      case 'hangup':
+        twiml = '<Response><Say>Thank you for calling. Goodbye.</Say><Hangup/></Response>';
+        break;
+
+      default:
+        twiml = '<Response><Say>Invalid action.</Say><Hangup/></Response>';
+    }
+
+    res.type('text/xml');
+    res.send(twiml);
+  } catch (error) {
+    console.error('Flow gather error:', error);
+    res.type('text/xml');
+    res.send('<Response><Say>An error occurred. Goodbye.</Say><Hangup/></Response>');
+  }
+}
+
+/**
+ * Handle direct flow step execution (for redirects)
+ */
+export async function handleFlowStep(req: Request, res: Response) {
+  try {
+    const { stepId } = req.params;
+    const { CallSid } = req.body;
+
+    console.log(`📋 Executing flow step ${stepId} for ${CallSid}`);
+
+    const session = await callService.getCallSessionByCallSid(CallSid);
+
+    if (!session || !session.metadata) {
+      res.type('text/xml');
+      return res.send('<Response><Say>Session error.</Say><Hangup/></Response>');
+    }
+
+    const metadata = session.metadata as any;
+    const flowType = metadata.flowType;
+
+    if (!flowType) {
+      res.type('text/xml');
+      return res.send('<Response><Say>Flow type not found.</Say><Hangup/></Response>');
+    }
+
+    const flow = await flowExecutor.getActiveFlow(session.tenantId, flowType);
+
+    if (!flow) {
+      res.type('text/xml');
+      return res.send('<Response><Say>Flow not found.</Say><Hangup/></Response>');
+    }
+
+    // Update current step
+    await prisma.callSession.update({
+      where: { id: session.id },
+      data: {
+        metadata: {
+          ...metadata,
+          currentStepId: stepId,
+        },
+      },
+    });
+
+    // Execute the step
+    const twiml = await flowExecutor.executeStep(flow, stepId, session.tenantId, CallSid);
+
+    res.type('text/xml');
+    res.send(twiml);
+  } catch (error) {
+    console.error('Flow step execution error:', error);
+    res.type('text/xml');
+    res.send('<Response><Say>An error occurred. Goodbye.</Say><Hangup/></Response>');
   }
 }
