@@ -214,9 +214,15 @@ export async function getNumbers(req: Request, res: Response) {
       orderBy: { createdAt: 'desc' },
     });
 
+    const tenants = await prisma.tenant.findMany({
+      where: { status: 'ACTIVE' },
+      orderBy: { name: 'asc' },
+    });
+
     res.render('admin/numbers', {
       user: req.user,
       numbers,
+      tenants,
     });
   } catch (error) {
     console.error('Get numbers error:', error);
