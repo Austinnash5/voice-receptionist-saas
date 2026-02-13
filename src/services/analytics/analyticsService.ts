@@ -45,25 +45,26 @@ export class AnalyticsService {
    * Get call metrics for a tenant within a date range
    */
   async getCallMetrics(tenantId: string, dateRange?: DateRange): Promise<CallMetrics> {
-    const where: any = { tenantId };
-    
-    if (dateRange) {
-      where.startTime = {
-        gte: dateRange.startDate,
-        lte: dateRange.endDate,
-      };
-    }
+    try {
+      const where: any = { tenantId };
+      
+      if (dateRange) {
+        where.startTime = {
+          gte: dateRange.startDate,
+          lte: dateRange.endDate,
+        };
+      }
 
-    const calls = await prisma.callSession.findMany({
-      where,
-      select: {
-        status: true,
-        duration: true,
-        leadCaptured: true,
-        transferAttempted: true,
-        transferSuccess: true,
-      },
-    });
+      const calls = await prisma.callSession.findMany({
+        where,
+        select: {
+          status: true,
+          duration: true,
+          leadCaptured: true,
+          transferAttempted: true,
+          transferSuccess: true,
+        },
+      }).catch(() => []);
 
     const totalCalls = calls.length;
     const completedCalls = calls.filter(c => c.status === CallStatus.COMPLETED).length;
@@ -80,38 +81,53 @@ export class AnalyticsService {
       : 0;
     const totalMinutes = Math.round(totalDuration / 60);
 
-    return {
-      totalCalls,
-      completedCalls,
-      failedCalls,
-      averageDuration,
-      totalMinutes,
-      leadsGenerated,
-      transferAttempts,
-      successfulTransfers,
-    };
+      return {
+        totalCalls,
+        completedCalls,
+        failedCalls,
+        averageDuration,
+        totalMinutes,
+        leadsGenerated,
+        transferAttempts,
+        successfulTransfers,
+      };
+    } catch (error) {
+      console.error('Error in getCallMetrics:', error);
+      // Return safe defaults on error
+      return {
+        totalCalls: 0,
+        completedCalls: 0,
+        failedCalls: 0,
+        averageDuration: 0,
+        totalMinutes: 0,
+        leadsGenerated: 0,
+        transferAttempts: 0,
+        successfulTransfers: 0,
+      };
+    }
   }
 
   /**
    * Get call volume data over time (daily aggregation)
    */
   async getCallVolumeOverTime(tenantId: string, dateRange: DateRange): Promise<CallVolumeData[]> {
-    const calls = await prisma.callSession.findMany({
-      where: {
-        tenantId,
-        startTime: {
-          gte: dateRange.startDate,
-          lte: dateRange.endDate,
+    try {
+      const calls = await prisma.callSession.findMany({
+        where: {
+          tenantId,
+          startTime: {
+            gte: dateRange.startDate,
+            lte: dateRange.endDate,
+          },
         },
-      },
-      select: {
-        startTime: true,
-        status: true,
-      },
-      orderBy: {
-        startTime: 'asc',
-      },
-    });
+        select: {
+          startTime: true,
+          status: true,
+        },
+        orderBy: {
+          startTime: 'asc',
+        },
+      }).catch(() => []);
 
     // Group by date
     const groupedByDate = new Map<string, { total: number; completed: number; failed: number }>();
@@ -133,34 +149,39 @@ export class AnalyticsService {
       }
     });
 
-    // Convert to array and sort
-    return Array.from(groupedByDate.entries())
-      .map(([date, stats]) => ({
-        date,
-        ...stats,
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+      // Convert to array and sort
+      return Array.from(groupedByDate.entries())
+        .map(([date, stats]) => ({
+          date,
+          ...stats,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+    } catch (error) {
+      console.error('Error in getCallVolumeOverTime:', error);
+      return [];
+    }
   }
 
   /**
    * Get peak hours analysis
    */
   async getPeakHours(tenantId: string, dateRange?: DateRange): Promise<PeakHoursData[]> {
-    const where: any = { tenantId };
-    
-    if (dateRange) {
-      where.startTime = {
-        gte: dateRange.startDate,
-        lte: dateRange.endDate,
-      };
-    }
+    try {
+      const where: any = { tenantId };
+      
+      if (dateRange) {
+        where.startTime = {
+          gte: dateRange.startDate,
+          lte: dateRange.endDate,
+        };
+      }
 
-    const calls = await prisma.callSession.findMany({
-      where,
-      select: {
-        startTime: true,
-      },
-    });
+      const calls = await prisma.callSession.findMany({
+        where,
+        select: {
+          startTime: true,
+        },
+      }).catch(() => []);
 
     // Group by hour (0-23)
     const hourCounts = new Array(24).fill(0);
@@ -170,17 +191,22 @@ export class AnalyticsService {
       hourCounts[hour]++;
     });
 
-    return hourCounts.map((count, hour) => ({
-      hour,
-      count,
-    }));
+      return hourCounts.map((count, hour) => ({
+        hour,
+        count,
+      }));
+    } catch (error) {
+      console.error('Error in getPeakHours:', error);
+      return Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 }));
+    }
   }
 
   /**
    * Get top FAQ questions
    */
   async getTopFAQs(tenantId: string, dateRange?: DateRange, limit: number = 10): Promise<TopFAQData[]> {
-    const where: any = { tenantId };
+    try {
+      const where: any = { tenantId };
     
     if (dateRange) {
       where.createdAt = {
@@ -217,17 +243,22 @@ export class AnalyticsService {
     });
 
     // Convert to array, sort, and limit
-    return Array.from(faqCounts.entries())
-      .map(([question, count]) => ({ question, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, limit);
+      return Array.from(faqCounts.entries())
+        .map(([question, count]) => ({ question, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, limit);
+    } catch (error) {
+      console.error('Error in getTopFAQs:', error);
+      return [];
+    }
   }
 
   /**
    * Get lead conversion data
    */
   async getLeadConversion(tenantId: string, dateRange?: DateRange): Promise<LeadConversionData> {
-    const where: any = { tenantId };
+    try {
+      const where: any = { tenantId };
     
     if (dateRange) {
       where.startTime = {
@@ -251,31 +282,36 @@ export class AnalyticsService {
       : 0;
 
     return {
-      totalCalls,
-      leadsGenerated,
-      conversionRate,
-    };
+        totalCalls,
+        leadsGenerated,
+        conversionRate,
+      };
+    } catch (error) {
+      console.error('Error in getLeadConversion:', error);
+      return { totalCalls: 0, leadsGenerated: 0, conversionRate: 0 };
+    }
   }
 
   /**
    * Get flow performance metrics
    */
   async getFlowPerformance(tenantId: string, dateRange?: DateRange) {
-    const where: any = { tenantId };
-    
-    if (dateRange) {
-      where.startTime = {
-        gte: dateRange.startDate,
-        lte: dateRange.endDate,
-      };
-    }
+    try {
+      const where: any = { tenantId };
+      
+      if (dateRange) {
+        where.startTime = {
+          gte: dateRange.startDate,
+          lte: dateRange.endDate,
+        };
+      }
 
-    const calls = await prisma.callSession.findMany({
-      where,
-      select: {
-        metadata: true,
-      },
-    });
+      const calls = await prisma.callSession.findMany({
+        where,
+        select: {
+          metadata: true,
+        },
+      }).catch(() => []);
 
     // Count flow usage and menu selections
     const flowUsage = new Map<string, number>();
@@ -294,13 +330,17 @@ export class AnalyticsService {
       }
     });
 
-    return {
-      flowUsage: Array.from(flowUsage.entries()).map(([type, count]) => ({ type, count })),
-      menuSelections: Array.from(menuSelections.entries())
-        .map(([selection, count]) => ({ selection, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10),
-    };
+      return {
+        flowUsage: Array.from(flowUsage.entries()).map(([type, count]) => ({ type, count })),
+        menuSelections: Array.from(menuSelections.entries())
+          .map(([selection, count]) => ({ selection, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 10),
+      };
+    } catch (error) {
+      console.error('Error in getFlowPerformance:', error);
+      return { flowUsage: [], menuSelections: [] };
+    }
   }
 
   /**
