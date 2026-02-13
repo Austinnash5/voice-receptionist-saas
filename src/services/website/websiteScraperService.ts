@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import prisma from '../../db/prisma';
-import { embedText } from './embeddingService';
+import { embedText } from '../ai/embeddingService';
 
 interface ScrapedPage {
   url: string;
