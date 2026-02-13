@@ -46,6 +46,7 @@ export async function getTenants(req: Request, res: Response) {
     res.render('admin/tenants', {
       user: req.user,
       tenants,
+      success: req.query.success || null,
     });
   } catch (error) {
     console.error('Get tenants error:', error);
@@ -59,6 +60,7 @@ export async function getTenants(req: Request, res: Response) {
 export function getCreateTenantForm(req: Request, res: Response) {
   res.render('admin/create-tenant', {
     user: req.user,
+    error: null,
   });
 }
 
@@ -71,13 +73,19 @@ export async function createTenant(req: Request, res: Response) {
 
     // Validate input
     if (!name || !slug || !adminEmail || !adminPassword) {
-      return res.status(400).send('All fields required');
+      return res.render('admin/create-tenant', {
+        user: req.user,
+        error: 'All fields are required',
+      });
     }
 
     // Check if slug exists
     const existing = await prisma.tenant.findUnique({ where: { slug } });
     if (existing) {
-      return res.status(400).send('Slug already exists');
+      return res.render('admin/create-tenant', {
+        user: req.user,
+        error: 'Slug already exists. Please choose a different one.',
+      });
     }
 
     // Create tenant with default config
@@ -106,10 +114,13 @@ export async function createTenant(req: Request, res: Response) {
 
     console.log(`✅ Created tenant: ${tenant.name} (${tenant.slug})`);
 
-    res.redirect('/admin/tenants');
+    res.redirect('/admin/tenants?success=Tenant created successfully');
   } catch (error) {
     console.error('Create tenant error:', error);
-    res.status(500).send('Error creating tenant');
+    return res.render('admin/create-tenant', {
+      user: req.user,
+      error: 'Error creating tenant. Please try again.',
+    });
   }
 }
 
