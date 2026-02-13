@@ -47,10 +47,17 @@
             <label>Tenant</label>
             <select name="tenantId" required>
               <option value="">Select Tenant</option>
-              <% tenants.forEach(tenant => { %>
-                <option value="<%= tenant.id %>"><%= tenant.name %></option>
-              <% }); %>
+              <% if (tenants && tenants.length > 0) { %>
+                <% tenants.forEach(tenant => { %>
+                  <option value="<%= tenant.id %>"><%= tenant.name %> <%= tenant.status !== 'ACTIVE' ? '(' + tenant.status + ')' : '' %></option>
+                <% }); %>
+              <% } else { %>
+                <option value="" disabled>No tenants found - Create a tenant first</option>
+              <% } %>
             </select>
+            <% if (tenants && tenants.length === 0) { %>
+              <small class="form-hint text-danger">No tenants available. <a href="/admin/tenants/new">Create a tenant first</a>.</small>
+            <% } %>
           </div>
           <button type="submit" class="btn btn-primary">Assign Number</button>
         </form>

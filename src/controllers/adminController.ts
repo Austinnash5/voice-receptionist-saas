@@ -234,10 +234,24 @@ export async function getNumbers(req: Request, res: Response) {
       orderBy: { name: 'asc' },
     });
 
+    // If no active tenants, get all tenants for debugging
+    let allTenants = tenants;
+    if (tenants.length === 0) {
+      allTenants = await prisma.tenant.findMany({
+        orderBy: { name: 'asc' },
+      });
+      console.log('⚠️  No ACTIVE tenants found. Total tenants:', allTenants.length);
+      if (allTenants.length > 0) {
+        console.log('📋 All tenants (any status):', allTenants.map(t => `${t.name} (${t.status})`));
+      }
+    } else {
+      console.log('✅ Active tenants:', tenants.length, '-', tenants.map(t => t.name).join(', '));
+    }
+
     res.render('admin/numbers', {
       user: req.user,
       numbers,
-      tenants,
+      tenants: allTenants, // Show all tenants if no active ones
     });
   } catch (error) {
     console.error('Get numbers error:', error);
