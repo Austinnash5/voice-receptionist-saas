@@ -447,13 +447,6 @@
         renderMonthlyComparisonChart(monthlyResult.data);
       }
     }
-          throw new Error(result.error || 'Failed to load analytics');
-        }
-      } catch (error) {
-        console.error('Analytics error:', error);
-        alert('Failed to load analytics: ' + error.message);
-      }
-    }
 
     function renderAnalytics(data) {
       const comparison = data.comparison;
