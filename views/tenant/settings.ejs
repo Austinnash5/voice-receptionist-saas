@@ -31,6 +31,131 @@
     <div class="container">
       <h1>Settings</h1>
 
+      <div class="card" id="business-hours">
+        <h2>Business Hours</h2>
+        <p class="text-muted">These hours determine when the conditional flow step considers your business "open".</p>
+        <form action="/tenant/settings/business-hours" method="POST">
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>Open?</th>
+                  <th>Opens</th>
+                  <th>Closes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']; %>
+                <% dayNames.forEach((dayLabel, index) => { 
+                     const record = businessHours.find(bh => bh.dayOfWeek === index);
+                     const isOpen = record ? record.isOpen : false;
+                     const openTime = record ? record.openTime : '09:00';
+                     const closeTime = record ? record.closeTime : '17:00';
+                %>
+                  <tr>
+                    <td><%= dayLabel %></td>
+                    <td>
+                      <label>
+                        <input type="checkbox" name="day_<%= index %>_isOpen" <%= isOpen ? 'checked' : '' %>>
+                        Open
+                      </label>
+                    </td>
+                    <td>
+                      <input type="time" name="day_<%= index %>_openTime" value="<%= openTime %>" <%= isOpen ? 'required' : '' %>>
+                    </td>
+                    <td>
+                      <input type="time" name="day_<%= index %>_closeTime" value="<%= closeTime %>" <%= isOpen ? 'required' : '' %>>
+                    </td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="form-group">
+            <label>Timezone</label>
+            <input type="text" name="timezone" value="<%= businessHours.length ? businessHours[0].timezone : 'America/Los_Angeles' %>" placeholder="America/Los_Angeles" required>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Save Business Hours</button>
+        </form>
+      </div>
+
+      <div class="card" id="holiday-hours">
+        <h2>Holiday & Special Hours</h2>
+        <p class="text-muted">Add exceptions for specific dates like holidays or special events.</p>
+
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (holidayHours.length === 0) { %>
+                <tr>
+                  <td colspan="4" class="text-muted">No holiday overrides yet.</td>
+                </tr>
+              <% } else { %>
+                <% holidayHours.forEach(holiday => { %>
+                  <tr>
+                    <td><%= holiday.name %></td>
+                    <td><%= new Date(holiday.date).toLocaleDateString() %></td>
+                    <td>
+                      <% if (holiday.isClosed) { %>
+                        <span class="badge badge-danger">Closed</span>
+                      <% } else { %>
+                        <span class="badge badge-info"><%= holiday.openTime %> - <%= holiday.closeTime %></span>
+                      <% } %>
+                    </td>
+                    <td>
+                      <form action="/tenant/settings/holidays/<%= holiday.id %>/delete" method="POST" onsubmit="return confirm('Delete this holiday override?');">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                      </form>
+                    </td>
+                  </tr>
+                <% }); %>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Add Holiday</h3>
+        <form action="/tenant/settings/holidays" method="POST">
+          <div class="form-group">
+            <label>Name</label>
+            <input type="text" name="name" placeholder="e.g., Thanksgiving" required>
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" name="date" required>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" name="isClosed" checked>
+              Closed All Day
+            </label>
+          </div>
+          <div class="form-inline" style="gap: 1rem;">
+            <div class="form-group">
+              <label>Opens</label>
+              <input type="time" name="openTime">
+            </div>
+            <div class="form-group">
+              <label>Closes</label>
+              <input type="time" name="closeTime">
+            </div>
+          </div>
+          <p class="text-muted">Leave the times blank when "Closed All Day" is enabled.</p>
+          <button type="submit" class="btn btn-primary">Add Holiday</button>
+        </form>
+      </div>
+
       <div class="card">
         <h2>Receptionist Configuration</h2>
         <form action="/tenant/settings/receptionist" method="POST">

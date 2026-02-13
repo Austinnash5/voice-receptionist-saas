@@ -12,6 +12,9 @@ import {
   addKnowledgeEntry,
   addTransferTarget,
   getAnalytics,
+  updateBusinessHours,
+  addHoliday,
+  deleteHoliday,
 } from '../controllers/tenantController';
 
 const router = express.Router();
@@ -41,5 +44,8 @@ router.get('/settings', getSettings);
 router.post('/settings/receptionist', updateReceptionistConfig);
 router.post('/settings/knowledge', addKnowledgeEntry);
 router.post('/settings/transfer-targets', addTransferTarget);
+router.post('/settings/business-hours', updateBusinessHours);
+router.post('/settings/holidays', addHoliday);
+router.post('/settings/holidays/:holidayId/delete', deleteHoliday);
 
 export default router;

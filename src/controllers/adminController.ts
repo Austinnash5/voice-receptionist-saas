@@ -1,6 +1,12 @@
 import { Request, Response } from 'express';
 import prisma from '../db/prisma';
 import { hashPassword } from '../middleware/auth';
+import {
+  addHolidayForTenant,
+  BusinessHourUpdate,
+  deleteHolidayForTenant,
+  saveBusinessHoursForTenant,
+} from '../services/tenant/scheduleService';
 
 /**
  * Admin Dashboard
@@ -157,6 +163,9 @@ export async function getTenant(req: Request, res: Response) {
         businessHours: {
           orderBy: { dayOfWeek: 'asc' },
         },
+        holidayHours: {
+          orderBy: { date: 'asc' },
+        },
       },
     });
 
@@ -209,6 +218,94 @@ export async function deleteTenant(req: Request, res: Response) {
   } catch (error) {
     console.error('Delete tenant error:', error);
     res.status(500).send('Error deleting tenant');
+  }
+}
+
+/**
+ * Update tenant business hours (admin)
+ */
+export async function updateTenantBusinessHours(req: Request, res: Response) {
+  try {
+    const { tenantId } = req.params;
+    if (!tenantId) {
+      return res.status(400).send('Tenant is required');
+    }
+
+    const timezone = (req.body.timezone as string | undefined) || undefined;
+    const hours: BusinessHourUpdate[] = [];
+
+    for (let day = 0; day < 7; day++) {
+      const isOpen = req.body[`day_${day}_isOpen`] === 'on';
+      const openTime = (req.body[`day_${day}_openTime`] as string) || '09:00';
+      const closeTime = (req.body[`day_${day}_closeTime`] as string) || '17:00';
+      hours.push({ dayOfWeek: day, isOpen, openTime, closeTime });
+    }
+
+    await saveBusinessHoursForTenant(tenantId, hours, timezone);
+
+    res.redirect(`/admin/tenants/${tenantId}#business-hours`);
+  } catch (error) {
+    console.error('Admin update business hours error:', error);
+    res.status(400).send(
+      error instanceof Error ? error.message : 'Unable to update business hours'
+    );
+  }
+}
+
+/**
+ * Add tenant holiday (admin)
+ */
+export async function addTenantHoliday(req: Request, res: Response) {
+  try {
+    const { tenantId } = req.params;
+    if (!tenantId) {
+      return res.status(400).send('Tenant is required');
+    }
+
+    const { name, date, isClosed, openTime, closeTime } = req.body;
+
+    if (!name || !date) {
+      return res.status(400).send('Holiday name and date are required');
+    }
+
+    const parsedDate = new Date(`${date}T00:00:00`);
+    const closed = isClosed === 'on';
+
+    if (!closed && (!openTime || !closeTime)) {
+      return res.status(400).send('Open and close times are required when not closed');
+    }
+
+    await addHolidayForTenant(tenantId, {
+      name,
+      date: parsedDate,
+      isClosed: closed,
+      openTime: closed ? null : openTime,
+      closeTime: closed ? null : closeTime,
+    });
+
+    res.redirect(`/admin/tenants/${tenantId}#holiday-hours`);
+  } catch (error) {
+    console.error('Admin add holiday error:', error);
+    res.status(400).send('Unable to add holiday');
+  }
+}
+
+/**
+ * Delete tenant holiday (admin)
+ */
+export async function deleteTenantHoliday(req: Request, res: Response) {
+  try {
+    const { tenantId, holidayId } = req.params;
+    if (!tenantId || !holidayId) {
+      return res.status(400).send('Tenant and holiday are required');
+    }
+
+    await deleteHolidayForTenant(tenantId, holidayId);
+
+    res.redirect(`/admin/tenants/${tenantId}#holiday-hours`);
+  } catch (error) {
+    console.error('Admin delete holiday error:', error);
+    res.status(400).send('Unable to delete holiday');
   }
 }
 

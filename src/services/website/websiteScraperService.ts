@@ -20,6 +20,7 @@ export class WebsiteScraperService {
   private readonly MAX_CHUNK_TOKENS = 500; // Tokens per chunk
   private readonly CHARS_PER_TOKEN = 4; // Approximate
   private readonly CRAWL_DELAY_MS = 500; // Delay between requests
+  private readonly MAX_REDIRECT_DEPTH = 3; // Follow limited client-side redirects
   private visited = new Set<string>();
   private queue: string[] = [];
 
@@ -111,15 +112,6 @@ export class WebsiteScraperService {
         if (page) {
           allPages.push(page);
 
-          // Update progress
-          await prisma.websiteSource.update({
-            where: { id: websiteSourceId },
-            data: {
-              pagesFound: this.visited.size,
-              pagesScraped: allPages.length,
-            },
-          });
-
           // Add new links to queue
           for (const link of page.links) {
             if (!this.visited.has(link) && !this.queue.includes(link)) {
@@ -127,6 +119,15 @@ export class WebsiteScraperService {
             }
           }
         }
+
+        // Update progress even if the page had no usable content
+        await prisma.websiteSource.update({
+          where: { id: websiteSourceId },
+          data: {
+            pagesFound: this.visited.size,
+            pagesScraped: allPages.length,
+          },
+        });
 
         // Rate limiting
         await this.sleep(this.CRAWL_DELAY_MS);
@@ -156,7 +157,8 @@ export class WebsiteScraperService {
    */
   private async scrapePage(
     url: string,
-    allowedDomain: string
+    allowedDomain: string,
+    redirectDepth = 0
   ): Promise<ScrapedPage | null> {
     try {
       const response = await axios.get(url, {
@@ -168,6 +170,18 @@ export class WebsiteScraperService {
       });
 
       const $ = cheerio.load(response.data);
+
+      const redirectTarget = this.detectClientRedirect($);
+      if (redirectTarget && redirectDepth < this.MAX_REDIRECT_DEPTH) {
+        try {
+          const nextUrl = new URL(redirectTarget, url);
+          if (nextUrl.hostname === allowedDomain) {
+            return this.scrapePage(nextUrl.toString(), allowedDomain, redirectDepth + 1);
+          }
+        } catch (redirectError) {
+          // Ignore invalid redirect targets and continue with current page
+        }
+      }
 
       // Remove script, style, nav, footer
       $('script, style, nav, footer, header, iframe, noscript').remove();
@@ -348,6 +362,29 @@ export class WebsiteScraperService {
    */
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Detect simple client-side redirects (meta refresh or inline window.location)
+   */
+  private detectClientRedirect($: cheerio.CheerioAPI): string | null {
+    const metaRefresh = $('meta[http-equiv="refresh"]').attr('content');
+    if (metaRefresh) {
+      const match = metaRefresh.match(/url=(.+)/i);
+      if (match?.[1]) {
+        return match[1].trim();
+      }
+    }
+
+    for (const script of $('script').toArray()) {
+      const scriptText = $(script).html() || '';
+      const match = scriptText.match(/window\.location(?:\.href|\.replace|\.assign)?\s*=\s*['"]([^'"]+)['"]/i);
+      if (match?.[1]) {
+        return match[1].trim();
+      }
+    }
+
+    return null;
   }
 }
 

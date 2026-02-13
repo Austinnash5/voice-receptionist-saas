@@ -18,6 +18,9 @@ import {
   getEditFlowPage,
   getTestKnowledgePage,
   getAnalyticsPage,
+  updateTenantBusinessHours,
+  addTenantHoliday,
+  deleteTenantHoliday,
 } from '../controllers/adminController';
 
 const router = express.Router();
@@ -37,6 +40,9 @@ router.post('/tenants', createTenant);
 router.get('/tenants/:id', getTenant);
 router.post('/tenants/:id', updateTenant);
 router.post('/tenants/:id/delete', deleteTenant);
+router.post('/tenants/:tenantId/business-hours', updateTenantBusinessHours);
+router.post('/tenants/:tenantId/holidays', addTenantHoliday);
+router.post('/tenants/:tenantId/holidays/:holidayId/delete', deleteTenantHoliday);
 
 // Phone Numbers
 router.get('/numbers', getNumbers);

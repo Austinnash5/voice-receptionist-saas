@@ -1,6 +1,12 @@
 import { Request, Response } from 'express';
 import prisma from '../db/prisma';
 import { leadService } from '../services/lead/leadService';
+import {
+  addHolidayForTenant,
+  BusinessHourUpdate,
+  deleteHolidayForTenant,
+  saveBusinessHoursForTenant,
+} from '../services/tenant/scheduleService';
 
 /**
  * Tenant Dashboard
@@ -300,6 +306,7 @@ export async function getSettings(req: Request, res: Response) {
       tenant,
       config,
       businessHours,
+      holidayHours,
       departments,
       transferTargets,
       knowledgeBase,
@@ -309,6 +316,10 @@ export async function getSettings(req: Request, res: Response) {
       prisma.businessHours.findMany({
         where: { tenantId },
         orderBy: { dayOfWeek: 'asc' },
+      }),
+      prisma.holidayHours.findMany({
+        where: { tenantId },
+        orderBy: { date: 'asc' },
       }),
       prisma.department.findMany({ where: { tenantId } }),
       prisma.transferTarget.findMany({
@@ -327,6 +338,7 @@ export async function getSettings(req: Request, res: Response) {
       tenant: req.tenant,
       config,
       businessHours,
+      holidayHours,
       departments,
       transferTargets,
       knowledgeBase,
@@ -443,6 +455,96 @@ export async function addTransferTarget(req: Request, res: Response) {
   } catch (error) {
     console.error('Add transfer target error:', error);
     res.status(500).send('Error adding transfer target');
+  }
+}
+
+/**
+ * Update weekly business hours
+ */
+export async function updateBusinessHours(req: Request, res: Response) {
+  try {
+    if (!req.user || !req.user.tenantId) {
+      return res.status(403).send('Forbidden');
+    }
+
+    const tenantId = req.user.tenantId;
+    const timezone = (req.body.timezone as string | undefined) || undefined;
+
+    const hours: BusinessHourUpdate[] = [];
+    for (let day = 0; day < 7; day++) {
+      const isOpen = req.body[`day_${day}_isOpen`] === 'on';
+      const openTime = (req.body[`day_${day}_openTime`] as string) || '09:00';
+      const closeTime = (req.body[`day_${day}_closeTime`] as string) || '17:00';
+      hours.push({ dayOfWeek: day, isOpen, openTime, closeTime });
+    }
+
+    await saveBusinessHoursForTenant(tenantId, hours, timezone);
+
+    res.redirect('/tenant/settings#business-hours');
+  } catch (error) {
+    console.error('Update business hours error:', error);
+    res.status(400).send(
+      error instanceof Error ? error.message : 'Failed to update business hours'
+    );
+  }
+}
+
+/**
+ * Add a holiday override
+ */
+export async function addHoliday(req: Request, res: Response) {
+  try {
+    if (!req.user || !req.user.tenantId) {
+      return res.status(403).send('Forbidden');
+    }
+
+    const tenantId = req.user.tenantId;
+    const { name, date, isClosed, openTime, closeTime } = req.body;
+
+    if (!name || !date) {
+      return res.status(400).send('Holiday name and date are required');
+    }
+
+    const parsedDate = new Date(`${date}T00:00:00`);
+    const closed = isClosed === 'on';
+
+    if (!closed && (!openTime || !closeTime)) {
+      return res.status(400).send('Open and close times are required for partial-day holidays');
+    }
+
+    await addHolidayForTenant(tenantId, {
+      name,
+      date: parsedDate,
+      isClosed: closed,
+      openTime: closed ? null : openTime,
+      closeTime: closed ? null : closeTime,
+    });
+
+    res.redirect('/tenant/settings#holiday-hours');
+  } catch (error) {
+    console.error('Add holiday error:', error);
+    res.status(400).send(error instanceof Error ? error.message : 'Failed to add holiday');
+  }
+}
+
+/**
+ * Delete holiday override
+ */
+export async function deleteHoliday(req: Request, res: Response) {
+  try {
+    if (!req.user || !req.user.tenantId) {
+      return res.status(403).send('Forbidden');
+    }
+
+    const tenantId = req.user.tenantId;
+    const { holidayId } = req.params;
+
+    await deleteHolidayForTenant(tenantId, holidayId);
+
+    res.redirect('/tenant/settings#holiday-hours');
+  } catch (error) {
+    console.error('Delete holiday error:', error);
+    res.status(400).send('Failed to delete holiday');
   }
 }
 
