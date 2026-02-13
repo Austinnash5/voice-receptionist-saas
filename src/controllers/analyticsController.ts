@@ -42,16 +42,24 @@ function parseDateRange(req: Request) {
 export async function getAnalytics(req: Request, res: Response) {
   try {
     const { tenantId } = req.params;
+    console.log('Analytics request - tenantId:', tenantId);
+    
     const dateRange = parseDateRange(req);
+    console.log('Date range:', dateRange);
+    
     const includeComparison = req.query.comparison === 'true';
+    console.log('Include comparison:', includeComparison);
 
     let analytics;
     if (includeComparison) {
+      console.log('Fetching analytics with comparison...');
       analytics = await analyticsService.getDashboardAnalyticsWithComparison(tenantId, dateRange);
     } else {
+      console.log('Fetching analytics without comparison...');
       analytics = await analyticsService.getDashboardAnalytics(tenantId, dateRange);
     }
 
+    console.log('Analytics fetched successfully');
     res.json({
       success: true,
       data: analytics,
@@ -62,9 +70,11 @@ export async function getAnalytics(req: Request, res: Response) {
     });
   } catch (error) {
     console.error('Get analytics error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     res.status(500).json({ 
       success: false, 
-      error: 'Failed to fetch analytics' 
+      error: 'Failed to fetch analytics',
+      details: error instanceof Error ? error.message : String(error)
     });
   }
 }
