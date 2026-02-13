@@ -54,7 +54,8 @@ export async function createFAQ(req: Request, res: Response) {
     res.json({ success: true, faq });
   } catch (error) {
     console.error('Create FAQ error:', error);
-    res.status(500).json({ success: false, error: 'Failed to create FAQ' });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ success: false, error: `Failed to create FAQ: ${errorMessage}` });
   }
 }
 
@@ -161,7 +162,8 @@ export async function createKnowledge(req: Request, res: Response) {
     res.json({ success: true, entry });
   } catch (error) {
     console.error('Create knowledge error:', error);
-    res.status(500).json({ success: false, error: 'Failed to create entry' });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ success: false, error: `Failed to create entry: ${errorMessage}` });
   }
 }
 
@@ -246,7 +248,7 @@ export async function listFlows(req: Request, res: Response) {
 export async function createFlow(req: Request, res: Response) {
   try {
     const { tenantId } = req.params;
-    const { name, flowType, config } = req.body;
+    const { name, flowType, config, priority } = req.body;
 
     // Check access
     if (req.user?.role !== 'SUPER_ADMIN' && req.user?.tenantId !== tenantId) {
@@ -263,13 +265,15 @@ export async function createFlow(req: Request, res: Response) {
         name,
         flowType,
         config: config || {},
+        priority: priority !== undefined ? priority : 0,
       },
     });
 
     res.json({ success: true, flow });
   } catch (error) {
     console.error('Create flow error:', error);
-    res.status(500).json({ success: false, error: 'Failed to create call flow' });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ success: false, error: `Failed to create call flow: ${errorMessage}` });
   }
 }
 
