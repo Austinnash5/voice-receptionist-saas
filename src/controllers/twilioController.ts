@@ -72,7 +72,7 @@ export async function handleIncomingCall(req: Request, res: Response) {
           metadata: {
             flowType,
             currentStepId: flow.entryPoint,
-          },
+          } as any,
         },
       });
 
@@ -83,7 +83,7 @@ export async function handleIncomingCall(req: Request, res: Response) {
     }
 
     // No flow configured - fall back to simple AI greeting
-    const config = twilioNumber.tenant.receptionistConfig;
+    const config = twilioNumber.tenant?.receptionistConfig;
     const greetingMessage = config?.greetingMessage || 
       'Thank you for calling. This call may be recorded. How can I help you today?';
 
@@ -281,7 +281,7 @@ export async function handleIVR(req: Request, res: Response) {
     }
 
     const config = twilioNumber.tenant.receptionistConfig;
-    const menuOption = config.ivrMenuOptions.find(opt => opt.digit === Digits);
+    const menuOption = config.ivrMenuOptions.find((opt: any) => opt.digit === Digits);
 
     if (!menuOption) {
       // Invalid selection
@@ -300,7 +300,7 @@ export async function handleIVR(req: Request, res: Response) {
             ...currentMetadata,
             ivrSelection: Digits,
             ivrLabel: menuOption.label,
-          },
+          } as any,
         },
       });
     }
@@ -539,7 +539,7 @@ export async function handleFlowGather(req: Request, res: Response) {
           ...metadata,
           lastSelection: Digits,
           currentStepId: selection.target,
-        },
+        } as any,
       },
     });
 
@@ -556,7 +556,7 @@ export async function handleFlowGather(req: Request, res: Response) {
               metadata: {
                 ...metadata,
                 currentStepId: selection.target,
-              },
+              } as any,
             },
           });
           twiml = await flowExecutor.executeStep(flow, selection.target, session.tenantId, CallSid);

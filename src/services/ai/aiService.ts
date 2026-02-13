@@ -266,7 +266,7 @@ SMART BEHAVIOR:
 CURRENT CONTEXT:
 - Call state: ${context.state}
 - Previous conversation: ${context.conversationHistory.length} turns
-${context.metadata?.ivrSelection ? `- Caller selected option: ${context.metadata.ivrLabel}` : ''}
+${context.metadata?.ivrSelection ? `- Caller selected option: ${context.metadata?.ivrLabel || 'Unknown'}` : ''}
 
 Remember: You're talking to someone on the phone. Be helpful, brief, and natural!`,
       },
