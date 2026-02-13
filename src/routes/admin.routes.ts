@@ -17,6 +17,7 @@ import {
   getCreateFlowPage,
   getEditFlowPage,
   getTestKnowledgePage,
+  getAnalyticsPage,
 } from '../controllers/adminController';
 
 const router = express.Router();
@@ -49,5 +50,6 @@ router.get('/tenants/:tenantId/flows', getFlowsPage);
 router.get('/tenants/:tenantId/flows/new', getCreateFlowPage);
 router.get('/tenants/:tenantId/flows/:flowId/edit', getEditFlowPage);
 router.get('/tenants/:tenantId/test', getTestKnowledgePage);
+router.get('/tenants/:tenantId/analytics', getAnalyticsPage);
 
 export default router;

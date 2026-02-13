@@ -24,6 +24,18 @@
     </div>
   </nav>
   
+  <!-- Tenant Management Tabs -->
+  <div style="background: #f6f8fa; border-bottom: 1px solid #e1e4e8;">
+    <div class="container">
+      <div style="display: flex; gap: 0; padding: 0;">
+        <a href="/admin/tenants/<%= tenant.id %>/faqs" style="padding: 1rem 1.5rem; text-decoration: none; color: #586069; border-bottom: 2px solid transparent; transition: all 0.2s;">FAQs</a>
+        <a href="/admin/tenants/<%= tenant.id %>/knowledge" style="padding: 1rem 1.5rem; text-decoration: none; color: #586069; border-bottom: 2px solid transparent; transition: all 0.2s;">Knowledge Base</a>
+        <a href="/admin/tenants/<%= tenant.id %>/flows" style="padding: 1rem 1.5rem; text-decoration: none; color: #0366d6; font-weight: 600; border-bottom: 2px solid #0366d6; transition: all 0.2s;">Call Flows</a>
+        <a href="/admin/tenants/<%= tenant.id %>/analytics" style="padding: 1rem 1.5rem; text-decoration: none; color: #586069; border-bottom: 2px solid transparent; transition: all 0.2s;">Analytics</a>
+      </div>
+    </div>
+  </div>
+  
   <main class="main-content">
   <div class="container">
     <div class="page-header">

@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics - <%= tenant.name %></title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    .analytics-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+
+    .date-range-selector {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .date-range-selector .btn {
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+    }
+
+    .date-range-selector .btn.active {
+      background: #0366d6;
+      color: white;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .metric-card {
+      background: white;
+      border-radius: 8px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      border-left: 4px solid #0366d6;
+    }
+
+    .metric-card.success {
+      border-left-color: #28a745;
+    }
+
+    .metric-card.warning {
+      border-left-color: #ffa500;
+    }
+
+    .metric-card.danger {
+      border-left-color: #dc3545;
+    }
+
+    .metric-card.info {
+      border-left-color: #17a2b8;
+    }
+
+    .metric-label {
+      font-size: 0.875rem;
+      color: #586069;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-value {
+      font-size: 2.5rem;
+      font-weight: 600;
+      color: #24292e;
+      margin: 0.5rem 0;
+    }
+
+    .metric-growth {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+
+    .metric-growth.positive {
+      color: #28a745;
+    }
+
+    .metric-growth.negative {
+      color: #dc3545;
+    }
+
+    .metric-growth.neutral {
+      color: #6a737d;
+    }
+
+    .metric-subtitle {
+      font-size: 0.875rem;
+      color: #6a737d;
+    }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .chart-card {
+      background: white;
+      border-radius: 8px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .chart-card h3 {
+      margin: 0 0 1rem 0;
+      color: #24292e;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 300px;
+    }
+
+    .full-width-chart .chart-container {
+      height: 400px;
+    }
+
+    .data-table {
+      width: 100%;
+      margin-top: 1rem;
+    }
+
+    .data-table th {
+      text-align: left;
+      padding: 0.75rem;
+      background: #f6f8fa;
+      border-bottom: 2px solid #e1e4e8;
+    }
+
+    .data-table td {
+      padding: 0.75rem;
+      border-bottom: 1px solid #e1e4e8;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #586069;
+    }
+
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 400px;
+    }
+
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #0366d6;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 768px) {
+      .charts-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-brand">
+        <a href="/">🤖 AI Voice Receptionist</a>
+      </div>
+      <ul class="nav-menu">
+        <li><a href="/admin/dashboard">Dashboard</a></li>
+        <li><a href="/admin/tenants">Tenants</a></li>
+        <li><a href="/admin/numbers">Phone Numbers</a></li>
+        <li class="user-menu">
+          <span><%= user.email %></span>
+          <a href="/logout" class="btn btn-sm">Logout</a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Tenant Management Tabs -->
+  <div style="background: #f6f8fa; border-bottom: 1px solid #e1e4e8;">
+    <div class="container">
+      <div style="display: flex; gap: 0; padding: 0;">
+        <a href="/admin/tenants/<%= tenant.id %>/faqs" style="padding: 1rem 1.5rem; text-decoration: none; color: #586069; border-bottom: 2px solid transparent; transition: all 0.2s;">FAQs</a>
+        <a href="/admin/tenants/<%= tenant.id %>/knowledge" style="padding: 1rem 1.5rem; text-decoration: none; color: #586069; border-bottom: 2px solid transparent; transition: all 0.2s;">Knowledge Base</a>
+        <a href="/admin/tenants/<%= tenant.id %>/flows" style="padding: 1rem 1.5rem; text-decoration: none; color: #586069; border-bottom: 2px solid transparent; transition: all 0.2s;">Call Flows</a>
+        <a href="/admin/tenants/<%= tenant.id %>/analytics" style="padding: 1rem 1.5rem; text-decoration: none; color: #0366d6; font-weight: 600; border-bottom: 2px solid #0366d6; transition: all 0.2s;">Analytics</a>
+      </div>
+    </div>
+  </div>
+
+  <main class="main-content">
+    <div class="container">
+      <div class="analytics-header">
+        <div>
+          <h1>📊 Analytics</h1>
+          <p class="subtitle"><%= tenant.name %></p>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <div class="date-range-selector">
+            <button class="btn period-btn active" data-period="7" onclick="changePeriod(7)">7 Days</button>
+            <button class="btn period-btn" data-period="30" onclick="changePeriod(30)">30 Days</button>
+            <button class="btn period-btn" data-period="90" onclick="changePeriod(90)">90 Days</button>
+          </div>
+          <div class="date-range-selector">
+            <button class="btn view-btn active" data-view="overview" onclick="changeView('overview')">Overview</button>
+            <button class="btn view-btn" data-view="daily" onclick="changeView('daily')">Day-by-Day</button>
+            <button class="btn view-btn" data-view="weekly" onclick="changeView('weekly')">Week-by-Week</button>
+            <button class="btn view-btn" data-view="monthly" onclick="changeView('monthly')">Month-by-Month</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="loadingState" class="loading">
+        <div class="spinner"></div>
+      </div>
+
+      <div id="analyticsContent" style="display: none;">
+        <!-- Key Metrics -->
+        <div class="metrics-grid" id="metricsGrid"></div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+          <div class="chart-card full-width-chart" style="grid-column: 1 / -1;">
+            <h3>📈 Call Volume Over Time</h3>
+            <div class="chart-container">
+              <canvas id="callVolumeChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3>⏰ Peak Hours</h3>
+            <div class="chart-container">
+              <canvas id="peakHoursChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3>🎯 Call Status Distribution</h3>
+            <div class="chart-container">
+              <canvas id="callStatusChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3>📞 Transfer Success Rate</h3>
+            <div class="chart-container">
+              <canvas id="transferSuccessChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3>🎯 Lead Conversion</h3>
+            <div class="chart-container">
+              <canvas id="leadConversionChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Comparison View (hidden by default) -->
+        <div id="comparisonView" style="display: none;">
+          <div class="card" style="margin-bottom: 2rem;">
+            <h3 id="comparisonTitle">📈 Growth Analysis</h3>
+            <div class="chart-container" style="height: 400px;">
+              <canvas id="comparisonChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top FAQs Table -->
+        <div class="card">
+          <h3>❓ Top FAQ Questions</h3>
+          <table class="data-table" id="topFAQsTable">
+            <thead>
+              <tr>
+                <th>Question</th>
+                <th>Times Asked</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <div id="noFAQs" style="display: none;" class="empty-state">
+            <p>No FAQ searches recorded yet</p>
+          </div>
+        </div>
+
+        <!-- Flow Performance -->
+        <div class="card" style="margin-top: 2rem;">
+          <h3>🔀 Flow Usage</h3>
+          <table class="data-table" id="flowPerformanceTable">
+            <thead>
+              <tr>
+                <th>Flow Type</th>
+                <th>Usage Count</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <div id="noFlows" style="display: none;" class="empty-state">
+            <p>No flow data yet</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const tenantId = '<%= tenant.id %>';
+    let currentPeriod = 7;
+    let currentView = 'overview';
+    let charts = {};
+
+    // Load analytics on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadAnalytics();
+    });
+
+    function changePeriod(period) {
+      currentPeriod = period;
+      document.querySelectorAll('.period-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.period) === period);
+      });
+      loadAnalytics();
+    }
+
+    function changeView(view) {
+      currentView = view;
+      document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === view);
+      });
+      loadAnalytics();
+    }
+
+    async function loadAnalytics() {
+      // Show loading
+      document.getElementById('loadingState').style.display = 'flex';
+      document.getElementById('analyticsContent').style.display = 'none';
+
+      try {
+        if (currentView === 'overview') {
+          await loadOverview();
+        } else if (currentView === 'daily') {
+          await loadDailyComparison();
+        } else if (currentView === 'weekly') {
+          await loadWeeklyComparison();
+        } else if (currentView === 'monthly') {
+          await loadMonthlyComparison();
+        }
+
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('analyticsContent').style.display = 'block';
+      } catch (error) {
+        console.error('Analytics error:', error);
+        alert('Failed to load analytics: ' + error.message);
+      }
+    }
+
+    async function loadOverview() {
+      const response = await fetch(`/api/tenants/${tenantId}/analytics?period=${currentPeriod}&comparison=true`);
+      const result = await response.json();
+
+      if (result.success) {
+        document.querySelector('.charts-grid').style.display = 'grid';
+        document.getElementById('comparisonView').style.display = 'none';
+        
+        renderAnalytics(result.data);
+      } else {
+        throw new Error(result.error || 'Failed to load analytics');
+      }
+    }
+
+    async function loadDailyComparison() {
+      const response = await fetch(`/api/tenants/${tenantId}/analytics?period=${currentPeriod}&comparison=true`);
+      const result = await response.json();
+
+      if (result.success) {
+        document.querySelector('.charts-grid').style.display = 'none';
+        document.getElementById('comparisonView').style.display = 'block';
+        document.getElementById('comparisonTitle').textContent = '📅 Day-by-Day Analysis';
+        
+        renderMetrics(result.data.metrics, result.data.leadConversion);
+        renderTopFAQs(result.data.topFAQs);
+        renderFlowPerformance(result.data.flowPerformance);
+        renderDailyComparisonChart(result.data.callVolume);
+      }
+    }
+
+    async function loadWeeklyComparison() {
+      const [analyticsResponse, weeklyResponse] = await Promise.all([
+        fetch(`/api/tenants/${tenantId}/analytics?period=${currentPeriod}&comparison=true`),
+        fetch(`/api/tenants/${tenantId}/analytics/comparison/week-over-week?weeks=8`),
+      ]);
+
+      const analyticsResult = await analyticsResponse.json();
+      const weeklyResult = await weeklyResponse.json();
+
+      if (analyticsResult.success && weeklyResult.success) {
+        document.querySelector('.charts-grid').style.display = 'none';
+        document.getElementById('comparisonView').style.display = 'block';
+        document.getElementById('comparisonTitle').textContent = '📊 Week-over-Week Growth';
+        
+        renderMetrics(analyticsResult.data.metrics, analyticsResult.data.leadConversion);
+        renderTopFAQs(analyticsResult.data.topFAQs);
+        renderFlowPerformance(analyticsResult.data.flowPerformance);
+        renderWeeklyComparisonChart(weeklyResult.data);
+      }
+    }
+
+    async function loadMonthlyComparison() {
+      const [analyticsResponse, monthlyResponse] = await Promise.all([
+        fetch(`/api/tenants/${tenantId}/analytics?period=${currentPeriod}&comparison=true`),
+        fetch(`/api/tenants/${tenantId}/analytics/comparison/month-over-month?months=6`),
+      ]);
+
+      const analyticsResult = await analyticsResponse.json();
+      const monthlyResult = await monthlyResponse.json();
+
+      if (analyticsResult.success && monthlyResult.success) {
+        document.querySelector('.charts-grid').style.display = 'none';
+        document.getElementById('comparisonView').style.display = 'block';
+        document.getElementById('comparisonTitle').textContent = '📈 Month-over-Month Growth';
+        
+        renderMetrics(analyticsResult.data.metrics, analyticsResult.data.leadConversion);
+        renderTopFAQs(analyticsResult.data.topFAQs);
+        renderFlowPerformance(analyticsResult.data.flowPerformance);
+        renderMonthlyComparisonChart(monthlyResult.data);
+      }
+    }
+          throw new Error(result.error || 'Failed to load analytics');
+        }
+      } catch (error) {
+        console.error('Analytics error:', error);
+        alert('Failed to load analytics: ' + error.message);
+      }
+    }
+
+    function renderAnalytics(data) {
+      const comparison = data.comparison;
+      renderMetrics(data.metrics, data.leadConversion, comparison);
+      renderCallVolumeChart(data.callVolume);
+      renderPeakHoursChart(data.peakHours);
+      renderCallStatusChart(data.metrics);
+      renderTransferSuccessChart(data.metrics);
+      renderLeadConversionChart(data.leadConversion);
+      renderTopFAQs(data.topFAQs);
+      renderFlowPerformance(data.flowPerformance);
+    }
+
+    function renderMetrics(metrics, leadConversion, comparison = null) {
+      const metricsGrid = document.getElementById('metricsGrid');
+      
+      function formatGrowth(growth) {
+        if (!growth && growth !== 0) return '';
+        const className = growth > 0 ? 'positive' : growth < 0 ? 'negative' : 'neutral';
+        const arrow = growth > 0 ? '↑' : growth < 0 ? '↓' : '→';
+        return `<div class="metric-growth ${className}">${arrow} ${Math.abs(growth)}% vs previous period</div>`;
+      }
+
+      const metricCards = [
+        {
+          label: 'Total Calls',
+          value: metrics.totalCalls.toLocaleString(),
+          subtitle: `${metrics.completedCalls} completed`,
+          growth: comparison?.growth?.totalCalls,
+          class: 'info',
+        },
+        {
+          label: 'Leads Generated',
+          value: metrics.leadsGenerated.toLocaleString(),
+          subtitle: `${leadConversion.conversionRate}% conversion rate`,
+          growth: comparison?.growth?.leadsGenerated,
+          class: 'success',
+        },
+        {
+          label: 'Total Minutes',
+          value: metrics.totalMinutes.toLocaleString(),
+          subtitle: `Avg ${metrics.averageDuration}s per call`,
+          growth: comparison?.growth?.averageDuration,
+          class: 'info',
+        },
+        {
+          label: 'Transfer Success',
+          value: metrics.transferAttempts > 0 
+            ? Math.round((metrics.successfulTransfers / metrics.transferAttempts) * 100) + '%'
+            : 'N/A',
+          subtitle: `${metrics.successfulTransfers} of ${metrics.transferAttempts} attempts`,
+          growth: comparison?.growth?.successfulTransfers,
+          class: metrics.transferAttempts > 0 && (metrics.successfulTransfers / metrics.transferAttempts) > 0.7 ? 'success' : 'warning',
+        },
+      ];
+
+      metricsGrid.innerHTML = metricCards.map(metric => `
+        <div class="metric-card ${metric.class}">
+          <div class="metric-label">${metric.label}</div>
+          <div class="metric-value">${metric.value}</div>
+          <div class="metric-subtitle">${metric.subtitle}</div>
+          ${formatGrowth(metric.growth)}
+        </div>
+      `).join('');
+    }
+
+    function renderCallVolumeChart(callVolume) {
+      const ctx = document.getElementById('callVolumeChart');
+      
+      if (charts.callVolume) {
+        charts.callVolume.destroy();
+      }
+
+      const labels = callVolume.map(d => {
+        const date = new Date(d.date);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      });
+
+      charts.callVolume = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Total Calls',
+              data: callVolume.map(d => d.total),
+              borderColor: '#0366d6',
+              backgroundColor: 'rgba(3, 102, 214, 0.1)',
+              tension: 0.4,
+            },
+            {
+              label: 'Completed',
+              data: callVolume.map(d => d.completed),
+              borderColor: '#28a745',
+              backgroundColor: 'rgba(40, 167, 69, 0.1)',
+              tension: 0.4,
+            },
+            {
+              label: 'Failed',
+              data: callVolume.map(d => d.failed),
+              borderColor: '#dc3545',
+              backgroundColor: 'rgba(220, 53, 69, 0.1)',
+              tension: 0.4,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function renderPeakHoursChart(peakHours) {
+      const ctx = document.getElementById('peakHoursChart');
+      
+      if (charts.peakHours) {
+        charts.peakHours.destroy();
+      }
+
+      const labels = peakHours.map(d => {
+        const hour = d.hour;
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const display = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+        return `${display}${ampm}`;
+      });
+
+      charts.peakHours = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Calls',
+            data: peakHours.map(d => d.count),
+            backgroundColor: 'rgba(3, 102, 214, 0.6)',
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false,
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function renderCallStatusChart(metrics) {
+      const ctx = document.getElementById('callStatusChart');
+      
+      if (charts.callStatus) {
+        charts.callStatus.destroy();
+      }
+
+      charts.callStatus = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Completed', 'Failed', 'Other'],
+          datasets: [{
+            data: [
+              metrics.completedCalls,
+              metrics.failedCalls,
+              metrics.totalCalls - metrics.completedCalls - metrics.failedCalls,
+            ],
+            backgroundColor: [
+              'rgba(40, 167, 69, 0.8)',
+              'rgba(220, 53, 69, 0.8)',
+              'rgba(108, 117, 125, 0.8)',
+            ],
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+            },
+          },
+        },
+      });
+    }
+
+    function renderTransferSuccessChart(metrics) {
+      const ctx = document.getElementById('transferSuccessChart');
+      
+      if (charts.transferSuccess) {
+        charts.transferSuccess.destroy();
+      }
+
+      charts.transferSuccess = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Successful', 'Failed'],
+          datasets: [{
+            data: [
+              metrics.successfulTransfers,
+              metrics.transferAttempts - metrics.successfulTransfers,
+            ],
+            backgroundColor: [
+              'rgba(40, 167, 69, 0.8)',
+              'rgba(220, 53, 69, 0.8)',
+            ],
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+            },
+          },
+        },
+      });
+    }
+
+    function renderLeadConversionChart(leadConversion) {
+      const ctx = document.getElementById('leadConversionChart');
+      
+      if (charts.leadConversion) {
+        charts.leadConversion.destroy();
+      }
+
+      charts.leadConversion = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Leads Captured', 'No Lead'],
+          datasets: [{
+            data: [
+              leadConversion.leadsGenerated,
+              leadConversion.totalCalls - leadConversion.leadsGenerated,
+            ],
+            backgroundColor: [
+              'rgba(40, 167, 69, 0.8)',
+              'rgba(108, 117, 125, 0.3)',
+            ],
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+            },
+          },
+        },
+      });
+    }
+
+    function renderTopFAQs(topFAQs) {
+      const tbody = document.querySelector('#topFAQsTable tbody');
+      const noFAQs = document.getElementById('noFAQs');
+      const table = document.getElementById('topFAQsTable');
+
+      if (topFAQs.length === 0) {
+        table.style.display = 'none';
+        noFAQs.style.display = 'block';
+        return;
+      }
+
+      table.style.display = 'table';
+      noFAQs.style.display = 'none';
+
+      tbody.innerHTML = topFAQs.map(faq => `
+        <tr>
+          <td>${faq.question}</td>
+          <td><strong>${faq.count}</strong></td>
+        </tr>
+      `).join('');
+    }
+
+    function renderFlowPerformance(flowPerformance) {
+      const tbody = document.querySelector('#flowPerformanceTable tbody');
+      const noFlows = document.getElementById('noFlows');
+      const table = document.getElementById('flowPerformanceTable');
+
+      if (!flowPerformance.flowUsage || flowPerformance.flowUsage.length === 0) {
+        table.style.display = 'none';
+        noFlows.style.display = 'block';
+        return;
+      }
+
+      table.style.display = 'table';
+      noFlows.style.display = 'none';
+
+      tbody.innerHTML = flowPerformance.flowUsage.map(flow => `
+        <tr>
+          <td>${flow.type}</td>
+          <td><strong>${flow.count}</strong></td>
+        </tr>
+      `).join('');
+    }
+
+    function renderDailyComparisonChart(data) {
+      const ctx = document.getElementById('comparisonChart');
+      if (charts.comparison) {
+        charts.comparison.destroy();
+      }
+
+      const labels = data.daily.map(d => {
+        const date = new Date(d.date);
+        return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      });
+
+      charts.comparison = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Total Calls',
+              data: data.daily.map(d => d.totalCalls),
+              borderColor: 'rgba(54, 162, 235, 1)',
+              backgroundColor: 'rgba(54, 162, 235, 0.1)',
+              tension: 0.4,
+            },
+            {
+              label: 'Completed Calls',
+              data: data.daily.map(d => d.completedCalls),
+              borderColor: 'rgba(40, 167, 69, 1)',
+              backgroundColor: 'rgba(40, 167, 69, 0.1)',
+              tension: 0.4,
+            },
+            {
+              label: 'Leads Generated',
+              data: data.daily.map(d => d.leadsGenerated),
+              borderColor: 'rgba(255, 193, 7, 1)',
+              backgroundColor: 'rgba(255, 193, 7, 0.1)',
+              tension: 0.4,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function renderWeeklyComparisonChart(data) {
+      const ctx = document.getElementById('comparisonChart');
+      if (charts.comparison) {
+        charts.comparison.destroy();
+      }
+
+      const labels = data.map(w => {
+        const startDate = new Date(w.weekStart);
+        return `Week of ${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      });
+
+      charts.comparison = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Total Calls',
+              data: data.map(w => w.totalCalls),
+              backgroundColor: 'rgba(54, 162, 235, 0.7)',
+              borderColor: 'rgba(54, 162, 235, 1)',
+              borderWidth: 1,
+            },
+            {
+              label: 'Completed Calls',
+              data: data.map(w => w.completedCalls),
+              backgroundColor: 'rgba(40, 167, 69, 0.7)',
+              borderColor: 'rgba(40, 167, 69, 1)',
+              borderWidth: 1,
+            },
+            {
+              label: 'Leads Generated',
+              data: data.map(w => w.leadsGenerated),
+              backgroundColor: 'rgba(255, 193, 7, 0.7)',
+              borderColor: 'rgba(255, 193, 7, 1)',
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              callbacks: {
+                afterLabel: function(context) {
+                  const weekIndex = context.dataIndex;
+                  const weekData = data[weekIndex];
+                  if (weekData.growth !== undefined && weekData.growth !== null) {
+                    const sign = weekData.growth > 0 ? '+' : '';
+                    return `Growth: ${sign}${weekData.growth.toFixed(1)}%`;
+                  }
+                  return '';
+                },
+              },
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0,
+              },
+            },
+          },
+        },
+      });
+    }
+
+    function renderMonthlyComparisonChart(data) {
+      const ctx = document.getElementById('comparisonChart');
+      if (charts.comparison) {
+        charts.comparison.destroy();
+      }
+
+      const labels = data.map(m => {
+        const date = new Date(m.monthStart);
+        return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      });
+
+      charts.comparison = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Total Calls',
+              data: data.map(m => m.totalCalls),
+              borderColor: 'rgba(54, 162, 235, 1)',
+              backgroundColor: 'rgba(54, 162, 235, 0.1)',
+              tension: 0.4,
+              fill: true,
+            },
+            {
+              label: 'Completed Calls',
+              data: data.map(m => m.completedCalls),
+              borderColor: 'rgba(40, 167, 69, 1)',
+              backgroundColor: 'rgba(40, 167, 69, 0.1)',
+              tension: 0.4,
+              fill: true,
+            },
+            {
+              label: 'Leads Generated',
+              data: data.map(m => m.leadsGenerated),
+              borderColor: 'rgba(255, 193, 7, 1)',
+              backgroundColor: 'rgba(255, 193, 7, 0.1)',
+              tension: 0.4,
+              fill: true,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              callbacks: {
+                afterLabel: function(context) {
+                  const monthIndex = context.dataIndex;
+                  const monthData = data[monthIndex];
+                  if (monthData.growth !== undefined && monthData.growth !== null) {
+                    const sign = monthData.growth > 0 ? '+' : '';
+                    return `Growth: ${sign}${monthData.growth.toFixed(1)}%`;
+                  }
+                  return '';
+                },
+              },
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0,
+              },
+            },
+          },
+        },
+      });
+    }
+  </script>
+</body>
+</html>

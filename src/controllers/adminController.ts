@@ -461,3 +461,28 @@ export async function getTestKnowledgePage(req: Request, res: Response) {
     res.status(500).send('Error loading test page');
   }
 }
+
+/**
+ * Analytics Page for Admin viewing tenant
+ */
+export async function getAnalyticsPage(req: Request, res: Response) {
+  try {
+    const { tenantId } = req.params;
+    
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      return res.status(404).send('Tenant not found');
+    }
+
+    res.render('admin/analytics', {
+      user: req.user,
+      tenant,
+    });
+  } catch (error) {
+    console.error('Analytics page error:', error);
+    res.status(500).send('Error loading analytics page');
+  }
+}
