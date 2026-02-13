@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { env } from '../../config/env';
 import { CallContext, AIResponse } from '../../types';
 import { searchFAQs, lookupKnowledgeBase, getBusinessHoursStatus } from './toolFunctions';
+import { ragService } from './ragService';
 
 class OpenAIService {
   private client: OpenAI;
@@ -115,7 +116,7 @@ class OpenAIService {
    */
   async chat(context: CallContext, userMessage: string): Promise<AIResponse> {
     try {
-      const messages = this.buildMessages(context, userMessage);
+      const messages = await this.buildMessages(context, userMessage);
       const tools = this.getTools();
 
       // First completion - may request function calls
@@ -235,8 +236,19 @@ class OpenAIService {
   /**
    * Build message array for OpenAI
    */
-  private buildMessages(context: CallContext, userMessage: string): OpenAI.ChatCompletionMessageParam[] {
+  private async buildMessages(context: CallContext, userMessage: string): Promise<OpenAI.ChatCompletionMessageParam[]> {
     const personality = context.config?.personality || 'professional, friendly, and helpful';
+    
+    // Get relevant website context using RAG
+    let websiteContext = '';
+    try {
+      const relevantContext = await ragService.getRelevantContext(userMessage, context.tenantId, 3);
+      if (relevantContext) {
+        websiteContext = `\n\nWEBSITE CONTEXT (relevant information from the business website):\n${relevantContext}\n`;
+      }
+    } catch (error) {
+      console.error('Error fetching website context:', error);
+    }
     
     const messages: OpenAI.ChatCompletionMessageParam[] = [
       {
@@ -262,7 +274,7 @@ SMART BEHAVIOR:
 - If you find information, share it naturally without mentioning your search
 - If you don't know something, offer to connect them with someone who can help
 - Be proactive: anticipate what they might need
-
+${websiteContext}
 CURRENT CONTEXT:
 - Call state: ${context.state}
 - Previous conversation: ${context.conversationHistory.length} turns

@@ -36,6 +36,7 @@ model Tenant {
   callFlows           CallFlow[]
   callSessions        CallSession[]
   leads               Lead[]
+  websiteSources      WebsiteSource[]
   auditLogs           AuditLog[]
 
   @@index([slug])
@@ -489,6 +490,61 @@ enum JobStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+// ============================================
+// WEBSITE SCRAPING & RAG (Retrieval Augmented Generation)
+// ============================================
+
+model WebsiteSource {
+  id          String   @id @default(uuid())
+  tenantId    String
+  domain      String   // e.g., "example.com"
+  url         String   // Full URL: https://example.com
+  status      ScrapeStatus @default(PENDING)
+  pagesFound  Int      @default(0)
+  pagesScraped Int     @default(0)
+  lastScrapedAt DateTime?
+  errorMessage String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contents WebsiteContent[]
+
+  @@index([tenantId])
+  @@index([domain])
+  @@index([status])
+}
+
+enum ScrapeStatus {
+  PENDING
+  SCRAPING
+  COMPLETED
+  FAILED
+}
+
+model WebsiteContent {
+  id            String   @id @default(uuid())
+  websiteSourceId String
+  tenantId      String
+  url           String   // Page URL
+  title         String?
+  content       String   @db.Text  // Chunked text content
+  chunkIndex    Int      @default(0)  // Which chunk this is (for pages split into multiple chunks)
+  tokenCount    Int      @default(0)
+  embedding     Unsupported("vector(1536)")?  // OpenAI embedding (1536 dimensions)
+  metadata      Json?    // Additional metadata (headers, links, etc.)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  websiteSource WebsiteSource @relation(fields: [websiteSourceId], references: [id], onDelete: Cascade)
+
+  @@index([websiteSourceId])
+  @@index([tenantId])
+  @@index([url])
 }
 
 // ============================================

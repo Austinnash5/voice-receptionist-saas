@@ -48,6 +48,29 @@
       </div>
     </div>
 
+    <!-- Website Scraping Section -->
+    <div class="card">
+      <div class="card-header">
+        <h2>📱 Website Knowledge Extraction</h2>
+        <p style="color: #586069; font-size: 0.9rem; margin-top: 0.5rem;">Automatically extract information from the client's website using AI-powered semantic search</p>
+      </div>
+      <div class="card-body">
+        <form id="websiteForm" style="display: flex; gap: 1rem; align-items: flex-end;">
+          <div class="form-group" style="flex: 1; margin-bottom: 0;">
+            <label for="websiteUrl">Website URL</label>
+            <input type="url" id="websiteUrl" name="websiteUrl" class="form-control" placeholder="https://example.com" required>
+          </div>
+          <button type="submit" class="btn btn-primary">🔍 Scan Website</button>
+        </form>
+        
+        <div id="websiteStatus" style="margin-top: 1rem;"></div>
+        
+        <div id="websiteList" style="margin-top: 1rem;">
+          <p class="text-muted">Loading scraped websites...</p>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header">
         <h2>Add Knowledge Entry</h2>
@@ -275,8 +298,178 @@
       return div.innerHTML;
     }
 
+    // Load websites
+    async function loadWebsites() {
+      try {
+        const res = await fetch(`/api/tenants/${tenantId}/websites`);
+        const data = await res.json();
+        
+        renderWebsites(data.sources || []);
+      } catch (error) {
+        document.getElementById('websiteList').innerHTML = `<p class="text-danger">Failed to load websites</p>`;
+      }
+    }
+
+    // Render websites
+    function renderWebsites(sources) {
+      const list = document.getElementById('websiteList');
+      
+      if (sources.length === 0) {
+        list.innerHTML = '<p class="text-muted">No websites scanned yet. Enter a URL above to get started.</p>';
+        return;
+      }
+
+      let html = '<div style="display: flex; flex-direction: column; gap: 1rem;">';
+      sources.forEach(source => {
+        const statusColor = {
+          'PENDING': '#ffc107',
+          'SCRAPING': '#0d6efd',
+          'COMPLETED': '#28a745',
+          'FAILED': '#dc3545'
+        }[source.status] || '#6c757d';
+
+        const statusText = source.status.charAt(0) + source.status.slice(1).toLowerCase();
+        
+        html += `
+          <div style="padding: 1rem; background: #f8f9fa; border-radius: 8px; border-left: 4px solid ${statusColor};">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+              <div style="flex: 1;">
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">
+                  ${escapeHtml(source.domain)}
+                </div>
+                <div style="font-size: 0.9rem; color: #6c757d; margin-bottom: 0.5rem;">
+                  ${escapeHtml(source.url)}
+                </div>
+                <div style="display: flex; gap: 1rem; font-size: 0.9rem;">
+                  <span>Status: <strong style="color: ${statusColor};">${statusText}</strong></span>
+                  <span>📄 ${source.pagesScraped || 0} pages</span>
+                  <span>📦 ${source.chunks || 0} chunks</span>
+                </div>
+                ${source.pagesFound && source.status === 'SCRAPING' ? `
+                  <div style="margin-top: 0.5rem;">
+                    <div style="background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;">
+                      <div style="background: ${statusColor}; width: ${Math.round((source.pagesScraped / source.pagesFound) * 100)}%; height: 100%; transition: width 0.3s;"></div>
+                    </div>
+                    <div style="font-size: 0.85rem; color: #6c757d; margin-top: 0.25rem;">
+                      ${source.pagesScraped} / ${source.pagesFound} pages
+                    </div>
+                  </div>
+                ` : ''}
+                ${source.errorMessage ? `
+                  <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.5rem;">
+                    ⚠️ ${escapeHtml(source.errorMessage)}
+                  </div>
+                ` : ''}
+                ${source.lastScrapedAt ? `
+                  <div style="font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem;">
+                    Last scanned: ${new Date(source.lastScrapedAt).toLocaleString()}
+                  </div>
+                ` : ''}
+              </div>
+              <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                ${source.status === 'COMPLETED' ? `
+                  <button onclick="rescanWebsite('${source.id}')" class="btn btn-sm btn-secondary">🔄 Re-scan</button>
+                ` : ''}
+                <button onclick="deleteWebsite('${source.id}')" class="btn btn-sm btn-danger">Delete</button>
+              </div>
+            </div>
+          </div>`;
+      });
+      html += '</div>';
+      list.innerHTML = html;
+    }
+
+    // Handle website form submission
+    document.getElementById('websiteForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const url = document.getElementById('websiteUrl').value.trim();
+      if (!url) return;
+
+      try {
+        const res = await fetch(`/api/tenants/${tenantId}/websites`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await res.json();
+        if (data.websiteSourceId) {
+          document.getElementById('websiteUrl').value = '';
+          document.getElementById('websiteStatus').innerHTML = `
+            <div style="padding: 0.75rem; background: #d1ecf1; color: #0c5460; border-radius: 4px;">
+              ✓ Website scanning started! Refresh the page in a few moments to see progress.
+            </div>`;
+          
+          // Reload websites
+          setTimeout(() => {
+            loadWebsites();
+            document.getElementById('websiteStatus').innerHTML = '';
+          }, 2000);
+        } else {
+          document.getElementById('websiteStatus').innerHTML = `
+            <div style="padding: 0.75rem; background: #f8d7da; color: #721c24; border-radius: 4px;">
+              ⚠️ ${data.error || 'Failed to start website scan'}
+            </div>`;
+        }
+      } catch (error) {
+        document.getElementById('websiteStatus').innerHTML = `
+          <div style="padding: 0.75rem; background: #f8d7da; color: #721c24; border-radius: 4px;">
+            ⚠️ Failed to start website scan
+          </div>`;
+      }
+    });
+
+    // Delete website
+    async function deleteWebsite(websiteId) {
+      if (!confirm('Delete this website and all its scraped content?')) return;
+
+      try {
+        const res = await fetch(`/api/tenants/${tenantId}/websites/${websiteId}`, {
+          method: 'DELETE'
+        });
+
+        const data = await res.json();
+        if (data.message) {
+          loadWebsites();
+        } else {
+          alert('Error: ' + (data.error || 'Failed to delete'));
+        }
+      } catch (error) {
+        alert('Failed to delete website');
+      }
+    }
+
+    // Re-scan website
+    async function rescanWebsite(websiteId) {
+      if (!confirm('Re-scan this website? This will update all scraped content.')) return;
+
+      try {
+        const res = await fetch(`/api/tenants/${tenantId}/websites/${websiteId}/rescan`, {
+          method: 'POST'
+        });
+
+        const data = await res.json();
+        if (data.message) {
+          document.getElementById('websiteStatus').innerHTML = `
+            <div style="padding: 0.75rem; background: #d1ecf1; color: #0c5460; border-radius: 4px;">
+              ✓ Re-scan started! Refresh the page in a few moments to see progress.
+            </div>`;
+          setTimeout(() => {
+            loadWebsites();
+            document.getElementById('websiteStatus').innerHTML = '';
+          }, 2000);
+        } else {
+          alert('Error: ' + (data.error || 'Failed to start re-scan'));
+        }
+      } catch (error) {
+        alert('Failed to start re-scan');
+      }
+    }
+
     // Load on page load
     loadEntries();
+    loadWebsites();
   </script>
 
   <footer class="footer">
