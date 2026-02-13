@@ -529,7 +529,7 @@
   <script>
     const tenantId = '<%= tenant.id %>';
     const mode = '<%= mode %>';
-    const existingFlow = <%= flow ? JSON.stringify(flow) : 'null' %>;
+    const existingFlow = <%- flow ? JSON.stringify(flow) : 'null' %>;
     
     let steps = [];
     let entryPoint = '';
