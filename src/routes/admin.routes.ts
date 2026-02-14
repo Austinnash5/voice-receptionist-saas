@@ -21,6 +21,7 @@ import {
   updateTenantBusinessHours,
   addTenantHoliday,
   deleteTenantHoliday,
+  updateTenantReceptionistConfig,
 } from '../controllers/adminController';
 
 const router = express.Router();
@@ -43,6 +44,7 @@ router.post('/tenants/:id/delete', deleteTenant);
 router.post('/tenants/:tenantId/business-hours', updateTenantBusinessHours);
 router.post('/tenants/:tenantId/holidays', addTenantHoliday);
 router.post('/tenants/:tenantId/holidays/:holidayId/delete', deleteTenantHoliday);
+router.post('/tenants/:tenantId/receptionist-config', updateTenantReceptionistConfig);
 
 // Phone Numbers
 router.get('/numbers', getNumbers);

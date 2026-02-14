@@ -129,8 +129,10 @@ export class FlowExecutor {
     }
 
     switch (step.type) {
-      case 'menu':
-        return this.generateMenuTwiML(step, callSid);
+      case 'menu': {
+        const delaySeconds = await this.getMenuDelaySeconds(tenantId);
+        return this.generateMenuTwiML(step, callSid, delaySeconds);
+      }
 
       case 'message':
         return this.generateMessageTwiML(step);
@@ -158,9 +160,10 @@ export class FlowExecutor {
   /**
    * Generate TwiML for a menu step
    */
-  private generateMenuTwiML(step: FlowStep, callSid: string): string {
+  private generateMenuTwiML(step: FlowStep, callSid: string, delaySeconds: number): string {
     const timeout = step.timeout || 5;
     const gatherUrl = `${env.BASE_URL}/twilio/flow-gather`;
+    const pauseSeconds = Math.max(0, Math.min(60, Math.round(delaySeconds)));
 
     let twiml = '<?xml version="1.0" encoding="UTF-8"?><Response>';
     twiml += `<Gather input="dtmf" timeout="${timeout}" numDigits="1" action="${gatherUrl}" method="POST">`;
@@ -170,10 +173,14 @@ export class FlowExecutor {
     }
 
     // Read out menu options
-    if (step.options && step.options.length > 0) {
-      for (const option of step.options) {
+    const options = step.options ?? [];
+    if (options.length > 0) {
+      options.forEach((option, index) => {
         twiml += `<Say>Press ${option.digit} for ${this.escapeXML(option.label)}.</Say>`;
-      }
+        if (pauseSeconds > 0 && index < options.length - 1) {
+          twiml += `<Pause length="${pauseSeconds}"/>`;
+        }
+      });
     }
 
     twiml += '</Gather>';
@@ -319,6 +326,19 @@ export class FlowExecutor {
     return '<?xml version="1.0" encoding="UTF-8"?><Response>' +
       `<Say>${this.escapeXML(message)}</Say>` +
       '<Hangup/></Response>';
+  }
+
+  /**
+   * Get configured pause between menu options (seconds)
+   */
+  private async getMenuDelaySeconds(tenantId: string): Promise<number> {
+    const config = await prisma.receptionistConfig.findUnique({
+      where: { tenantId },
+      select: { menuOptionDelayMs: true },
+    });
+
+    const delayMs = config?.menuOptionDelayMs ?? 2000;
+    return Math.max(0, delayMs / 1000);
   }
 
   /**

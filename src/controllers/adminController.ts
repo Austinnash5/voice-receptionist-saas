@@ -314,6 +314,35 @@ export async function deleteTenantHoliday(req: Request, res: Response) {
 }
 
 /**
+ * Update receptionist config (admin)
+ */
+export async function updateTenantReceptionistConfig(req: Request, res: Response) {
+  try {
+    const { tenantId } = req.params;
+    if (!tenantId) {
+      return res.status(400).send('Tenant is required');
+    }
+
+    const { menuOptionDelaySeconds } = req.body;
+    const delaySeconds = Number(menuOptionDelaySeconds);
+    const menuOptionDelayMs = Number.isFinite(delaySeconds)
+      ? Math.max(0, Math.min(60, delaySeconds)) * 1000
+      : 2000;
+
+    await prisma.receptionistConfig.upsert({
+      where: { tenantId },
+      update: { menuOptionDelayMs },
+      create: { tenantId, menuOptionDelayMs },
+    });
+
+    res.redirect(`/admin/tenants/${tenantId}#receptionist-config`);
+  } catch (error) {
+    console.error('Admin update receptionist config error:', error);
+    res.status(500).send('Unable to update receptionist configuration');
+  }
+}
+
+/**
  * List phone numbers
  */
 export async function getNumbers(req: Request, res: Response) {

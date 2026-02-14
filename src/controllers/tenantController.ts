@@ -370,7 +370,13 @@ export async function updateReceptionistConfig(req: Request, res: Response) {
       leadCapturePrompt,
       fallbackMessage,
       endCallMessage,
+      menuOptionDelaySeconds,
     } = req.body;
+
+    const delaySeconds = Number(menuOptionDelaySeconds);
+    const menuOptionDelayMs = Number.isFinite(delaySeconds)
+      ? Math.max(0, Math.min(60, delaySeconds)) * 1000
+      : 2000;
 
     await prisma.receptionistConfig.upsert({
       where: { tenantId },
@@ -381,6 +387,7 @@ export async function updateReceptionistConfig(req: Request, res: Response) {
         leadCapturePrompt,
         fallbackMessage,
         endCallMessage,
+        menuOptionDelayMs,
       },
       create: {
         tenantId,
@@ -390,6 +397,7 @@ export async function updateReceptionistConfig(req: Request, res: Response) {
         leadCapturePrompt,
         fallbackMessage,
         endCallMessage,
+        menuOptionDelayMs,
       },
     });
 

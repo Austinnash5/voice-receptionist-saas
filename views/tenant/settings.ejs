@@ -194,6 +194,19 @@
             <input type="text" name="endCallMessage" value="<%= config ? config.endCallMessage : '' %>">
           </div>
 
+          <div class="form-group">
+            <label>Menu Option Delay (seconds)</label>
+            <input
+              type="number"
+              name="menuOptionDelaySeconds"
+              min="0"
+              max="60"
+              step="1"
+              value="<%= config && config.menuOptionDelayMs !== null && config.menuOptionDelayMs !== undefined ? Math.round(config.menuOptionDelayMs / 1000) : 2 %>"
+              required>
+            <p class="text-muted">Controls the pause between each spoken menu option.</p>
+          </div>
+
           <button type="submit" class="btn btn-primary">Save Configuration</button>
         </form>
       </div>

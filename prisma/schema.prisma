@@ -159,6 +159,7 @@ model ReceptionistConfig {
   enableVoicemail       Boolean  @default(true)
   voicemailPrompt       String?  @db.Text  // Voicemail greeting
   voicemailFlowEnabled  Boolean  @default(false)  // AI handles voicemail
+  menuOptionDelayMs     Int      @default(2000)
   
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
