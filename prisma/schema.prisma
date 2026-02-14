@@ -450,10 +450,25 @@ model Lead {
   // Relations
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   callSession CallSession? @relation(fields: [callSessionId], references: [id], onDelete: SetNull)
+  customFields LeadField[]
 
   @@index([tenantId])
   @@index([status])
   @@index([createdAt])
+}
+
+model LeadField {
+  id        String   @id @default(uuid())
+  leadId    String
+  label     String   // The question label (e.g., "Company Name", "Budget")
+  value     String   @db.Text
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  // Relations
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
 }
 
 enum LeadStatus {

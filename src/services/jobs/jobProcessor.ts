@@ -249,6 +249,11 @@ export class JobProcessor {
             },
           },
           callSession: true,
+          customFields: {
+            orderBy: {
+              order: 'asc',
+            },
+          },
         },
       });
 
@@ -261,15 +266,34 @@ export class JobProcessor {
       if (lead.tenant.users.length > 0) {
         const adminEmail = lead.tenant.users[0].email;
 
-        await emailService.sendLeadNotification({
-          tenantName: lead.tenant.name,
-          tenantEmail: adminEmail,
-          leadName: lead.name || 'Unknown',
-          leadPhone: lead.phone || 'Not provided',
-          leadEmail: lead.email || 'Not provided',
-          leadReason: lead.reason || 'Not specified',
-          callTime: lead.callSession?.startTime || lead.createdAt,
-        });
+        // Check if this lead has custom fields (from collect_lead step)
+        if (lead.customFields && lead.customFields.length > 0) {
+          // Send custom field notification
+          const responses = lead.customFields.map(field => ({
+            label: field.label,
+            answer: field.value,
+            order: field.order,
+          }));
+
+          await emailService.sendCustomLeadNotification({
+            tenantName: lead.tenant.name,
+            tenantEmail: adminEmail,
+            callFrom: lead.phone || lead.callSession?.fromNumber || 'Unknown',
+            responses,
+            callTime: lead.callSession?.startTime || lead.createdAt,
+          });
+        } else {
+          // Send standard lead notification
+          await emailService.sendLeadNotification({
+            tenantName: lead.tenant.name,
+            tenantEmail: adminEmail,
+            leadName: lead.name || 'Unknown',
+            leadPhone: lead.phone || 'Not provided',
+            leadEmail: lead.email || 'Not provided',
+            leadReason: lead.reason || 'Not specified',
+            callTime: lead.callSession?.startTime || lead.createdAt,
+          });
+        }
       }
 
       return true;

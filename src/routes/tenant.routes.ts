@@ -7,6 +7,7 @@ import {
   getLeads,
   getLeadDetail,
   updateLead,
+  exportLeads,
   getSettings,
   updateReceptionistConfig,
   addKnowledgeEntry,
@@ -35,6 +36,7 @@ router.get('/calls/:id', getCallDetail);
 router.get('/leads', getLeads);
 router.get('/leads/:id', getLeadDetail);
 router.post('/leads/:id', updateLead);
+router.get('/leads/export/csv', exportLeads);
 
 // Analytics
 router.get('/analytics', getAnalytics);

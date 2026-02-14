@@ -5,7 +5,14 @@ import { getBusinessHoursStatus } from '../ai/toolFunctions';
 /**
  * Flow Step Types
  */
-export type FlowStepType = 'menu' | 'message' | 'transfer' | 'ai' | 'voicemail' | 'gather_info' | 'conditional';
+export type FlowStepType = 'menu' | 'message' | 'transfer' | 'ai' | 'voicemail' | 'gather_info' | 'conditional' | 'collect_lead';
+
+export interface LeadQuestion {
+  id: string;
+  label: string;
+  question: string;
+  order: number;
+}
 
 export interface FlowStep {
   id: string;
@@ -19,6 +26,7 @@ export interface FlowStep {
   falseTarget?: string;
   gatherType?: 'name' | 'phone' | 'email' | 'reason';
   nextStep?: string;
+  leadQuestions?: LeadQuestion[];  // For collect_lead step type
 }
 
 export interface FlowOption {
@@ -151,6 +159,9 @@ export class FlowExecutor {
 
       case 'gather_info':
         return this.generateGatherInfoTwiML(step, callSid);
+
+      case 'collect_lead':
+        return this.generateCollectLeadTwiML(step, callSid, 0);
 
       default:
         return this.generateErrorTwiML('Unknown step type.');
@@ -315,6 +326,76 @@ export class FlowExecutor {
     twiml += '</Gather>';
     twiml += '<Say>I did not hear your response. Goodbye.</Say>';
     twiml += '<Hangup/></Response>';
+
+    return twiml;
+  }
+
+  /**
+   * Generate TwiML for collecting lead information with custom questions
+   */
+  generateCollectLeadTwiML(step: FlowStep, callSid: string, questionIndex: number, isConfirming: boolean = false): string {
+    const gatherUrl = `${env.BASE_URL}/twilio/collect-lead-response`;
+    
+    if (!step.leadQuestions || step.leadQuestions.length === 0) {
+      return this.generateErrorTwiML('No questions configured for lead collection.');
+    }
+
+    // Sort questions by order
+    const sortedQuestions = [...step.leadQuestions].sort((a, b) => a.order - b.order);
+    
+    if (questionIndex >= sortedQuestions.length) {
+      // All questions answered - indicate completion
+      let twiml = '<?xml version="1.0" encoding="UTF-8"?><Response>';
+      twiml += '<Say>Thank you! Your information has been recorded. Someone will contact you shortly.</Say>';
+      
+      if (step.nextStep) {
+        twiml += `<Redirect method="POST">${env.BASE_URL}/twilio/flow-step/${step.nextStep}?callSid=${callSid}</Redirect>`;
+      } else {
+        twiml += '<Hangup/>';
+      }
+      
+      twiml += '</Response>';
+      return twiml;
+    }
+
+    const currentQuestion = sortedQuestions[questionIndex];
+
+    let twiml = '<?xml version="1.0" encoding="UTF-8"?><Response>';
+    twiml += `<Gather input="speech" timeout="5" speechTimeout="auto" action="${gatherUrl}" method="POST">`;
+    
+    if (step.prompt && questionIndex === 0) {
+      twiml += `<Say>${this.escapeXML(step.prompt)}</Say>`;
+    }
+    
+    twiml += `<Say>${this.escapeXML(currentQuestion.question)}</Say>`;
+    twiml += '</Gather>';
+    twiml += '<Say>I did not hear your response. Please try again.</Say>';
+    twiml += `<Redirect method="POST">${env.BASE_URL}/twilio/flow-step/${step.id}?callSid=${callSid}&questionIndex=${questionIndex}</Redirect>`;
+    twiml += '</Response>';
+
+    return twiml;
+  }
+
+  /**
+   * Generate TwiML for confirming a lead response
+   */
+  generateConfirmLeadResponseTwiML(step: FlowStep, callSid: string, questionIndex: number, response: string): string {
+    const gatherUrl = `${env.BASE_URL}/twilio/confirm-lead-response`;
+    
+    if (!step.leadQuestions || questionIndex >= step.leadQuestions.length) {
+      return this.generateErrorTwiML('Invalid question index.');
+    }
+
+    const sortedQuestions = [...step.leadQuestions].sort((a, b) => a.order - b.order);
+    const currentQuestion = sortedQuestions[questionIndex];
+
+    let twiml = '<?xml version="1.0" encoding="UTF-8"?><Response>';
+    twiml += `<Gather input="speech" timeout="5" speechTimeout="auto" action="${gatherUrl}" method="POST">`;
+    twiml += `<Say>I heard you say: ${this.escapeXML(response)}. Is that correct? Please say yes or no.</Say>`;
+    twiml += '</Gather>';
+    twiml += '<Say>I did not hear your response.</Say>';
+    twiml += `<Redirect method="POST">${env.BASE_URL}/twilio/flow-step/${step.id}?callSid=${callSid}&questionIndex=${questionIndex}</Redirect>`;
+    twiml += '</Response>';
 
     return twiml;
   }

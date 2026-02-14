@@ -29,7 +29,14 @@
 
   <main class="main-content">
     <div class="container">
-      <h1>Leads</h1>
+      <div class="page-header">
+        <div>
+          <h1>Leads</h1>
+        </div>
+        <div>
+          <a href="/tenant/leads/export/csv<%= filterStatus ? '?status=' + filterStatus : '' %>" class="btn btn-primary">📥 Export to CSV</a>
+        </div>
+      </div>
 
       <div class="stats-mini">
         <div class="stat"><strong><%= leadStats.new %></strong> New</div>

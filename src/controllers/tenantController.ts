@@ -293,6 +293,36 @@ export async function updateLead(req: Request, res: Response) {
 }
 
 /**
+ * Export leads as CSV
+ */
+export async function exportLeads(req: Request, res: Response) {
+  try {
+    if (!req.user || !req.user.tenantId) {
+      return res.status(403).send('Forbidden');
+    }
+
+    const tenantId = req.user.tenantId;
+    const { status, startDate, endDate } = req.query;
+
+    const options: any = {};
+    if (status) options.status = status as string;
+    if (startDate) options.startDate = new Date(startDate as string);
+    if (endDate) options.endDate = new Date(endDate as string);
+
+    const csv = await leadService.exportLeadsToCSV(tenantId, options);
+
+    const filename = `leads-${new Date().toISOString().split('T')[0]}.csv`;
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Export leads error:', error);
+    res.status(500).send('Error exporting leads');
+  }
+}
+
+/**
  * Settings page
  */
 export async function getSettings(req: Request, res: Response) {

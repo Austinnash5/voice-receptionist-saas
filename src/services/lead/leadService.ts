@@ -68,6 +68,9 @@ export class LeadService {
               startTime: true,
             },
           },
+          customFields: {
+            orderBy: { order: 'asc' },
+          },
         },
       });
 
@@ -91,6 +94,9 @@ export class LeadService {
               transcript: true,
               summary: true,
             },
+          },
+          customFields: {
+            orderBy: { order: 'asc' },
           },
         },
       });
@@ -167,6 +173,94 @@ export class LeadService {
         qualified: 0,
         converted: 0,
       };
+    }
+  }
+
+  /**
+   * Export leads as CSV
+   */
+  async exportLeadsToCSV(tenantId: string, options?: {
+    status?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<string> {
+    try {
+      const where: any = { tenantId };
+      
+      if (options?.status) {
+        where.status = options.status;
+      }
+
+      if (options?.startDate || options?.endDate) {
+        where.createdAt = {};
+        if (options.startDate) where.createdAt.gte = options.startDate;
+        if (options.endDate) where.createdAt.lte = options.endDate;
+      }
+
+      const leads = await prisma.lead.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          customFields: {
+            orderBy: { order: 'asc' },
+          },
+          callSession: {
+            select: {
+              callSid: true,
+              fromNumber: true,
+              startTime: true,
+              duration: true,
+            },
+          },
+        },
+      });
+
+      if (leads.length === 0) {
+        return 'No leads found';
+      }
+
+      // Collect all unique custom field labels
+      const customFieldLabels = new Set<string>();
+      leads.forEach(lead => {
+        lead.customFields.forEach(field => {
+          customFieldLabels.add(field.label);
+        });
+      });
+
+      // Create CSV header
+      const baseHeaders = ['Created At', 'Status', 'Name', 'Phone', 'Email', 'Reason', 'Source', 'Call Duration (s)', 'Notes'];
+      const customHeaders = Array.from(customFieldLabels);
+      const headers = [...baseHeaders, ...customHeaders];
+      
+      let csv = headers.map(h => `"${h}"`).join(',') + '\n';
+
+      // Add rows
+      for (const lead of leads) {
+        const row: string[] = [
+          lead.createdAt.toISOString(),
+          lead.status,
+          lead.name || '',
+          lead.phone || '',
+          lead.email || '',
+          lead.reason || '',
+          lead.source,
+          lead.callSession?.duration?.toString() || '',
+          lead.notes || '',
+        ];
+
+        // Add custom field values
+        for (const label of customHeaders) {
+          const field = lead.customFields.find(f => f.label === label);
+          row.push(field?.value || '');
+        }
+
+        csv += row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(',') + '\n';
+      }
+
+      return csv;
+    } catch (error) {
+      console.error('Error exporting leads to CSV:', error);
+      throw error;
     }
   }
 }

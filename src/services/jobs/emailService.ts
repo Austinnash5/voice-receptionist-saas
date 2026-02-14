@@ -128,6 +128,64 @@ ${params.summary}
   }
 
   /**
+   * Send custom lead notification (with custom fields)
+   */
+  async sendCustomLeadNotification(params: {
+    tenantName: string;
+    tenantEmail: string;
+    callFrom: string;
+    responses: Array<{ label: string; answer: string; order: number }>;
+    callTime?: Date;
+  }): Promise<boolean> {
+    // Build HTML list of responses
+    const responsesHtml = params.responses
+      .sort((a, b) => a.order - b.order)
+      .map(r => `<li><strong>${r.label}:</strong> ${r.answer}</li>`)
+      .join('\n');
+
+    const html = `
+      <h2>New Lead Captured - ${params.tenantName}</h2>
+      <p>A new lead was captured from a phone call with the following information:</p>
+      <ul>
+        <li><strong>Phone Number:</strong> ${params.callFrom}</li>
+        ${params.callTime ? `<li><strong>Call Time:</strong> ${params.callTime.toLocaleString()}</li>` : ''}
+      </ul>
+      <h3>Lead Information:</h3>
+      <ul>
+        ${responsesHtml}
+      </ul>
+      <p>Please follow up with this lead as soon as possible.</p>
+    `;
+
+    // Build text version
+    const responsesText = params.responses
+      .sort((a, b) => a.order - b.order)
+      .map(r => `${r.label}: ${r.answer}`)
+      .join('\n');
+
+    const text = `
+New Lead Captured - ${params.tenantName}
+
+A new lead was captured from a phone call with the following information:
+
+Phone Number: ${params.callFrom}
+${params.callTime ? `Call Time: ${params.callTime.toLocaleString()}` : ''}
+
+Lead Information:
+${responsesText}
+
+Please follow up with this lead as soon as possible.
+    `;
+
+    return this.sendEmail({
+      to: params.tenantEmail,
+      subject: `New Lead from ${params.callFrom}`,
+      text,
+      html,
+    });
+  }
+
+  /**
    * Verify email configuration
    */
   async verifyConnection(): Promise<boolean> {

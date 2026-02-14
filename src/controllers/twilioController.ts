@@ -620,6 +620,7 @@ export async function handleFlowStep(req: Request, res: Response) {
   try {
     const { stepId } = req.params;
     const { CallSid } = req.body;
+    const { questionIndex } = req.query;
 
     console.log(`📋 Executing flow step ${stepId} for ${CallSid}`);
 
@@ -645,15 +646,19 @@ export async function handleFlowStep(req: Request, res: Response) {
       return res.send('<Response><Say>Flow not found.</Say><Hangup/></Response>');
     }
 
-    // Update current step
+    // Update current step and question index if provided
+    const updatedMetadata: any = {
+      ...metadata,
+      currentStepId: stepId,
+    };
+    
+    if (questionIndex !== undefined) {
+      updatedMetadata.leadQuestionIndex = parseInt(questionIndex as string, 10);
+    }
+
     await prisma.callSession.update({
       where: { id: session.id },
-      data: {
-        metadata: {
-          ...metadata,
-          currentStepId: stepId,
-        },
-      },
+      data: { metadata: updatedMetadata },
     });
 
     // Execute the step
@@ -665,5 +670,249 @@ export async function handleFlowStep(req: Request, res: Response) {
     console.error('Flow step execution error:', error);
     res.type('text/xml');
     res.send('<Response><Say>An error occurred. Goodbye.</Say><Hangup/></Response>');
+  }
+}
+/**
+ * Handle lead collection response (answer to a question)
+ */
+export async function handleCollectLeadResponse(req: Request, res: Response) {
+  try {
+    const { CallSid, SpeechResult } = req.body;
+
+    console.log(`📝 Collecting lead response for ${CallSid}: "${SpeechResult}"`);
+
+    const session = await callService.getCallSessionByCallSid(CallSid);
+
+    if (!session || !session.metadata) {
+      res.type('text/xml');
+      return res.send('<Response><Say>Session error.</Say><Hangup/></Response>');
+    }
+
+    const metadata = session.metadata as any;
+    const flowType = metadata.flowType;
+    const currentStepId = metadata.currentStepId;
+    const questionIndex = metadata.leadQuestionIndex || 0;
+
+    if (!flowType || !currentStepId) {
+      res.type('text/xml');
+      return res.send('<Response><Say>Flow error.</Say><Hangup/></Response>');
+    }
+
+    const flow = await flowExecutor.getActiveFlow(session.tenantId, flowType);
+
+    if (!flow) {
+      res.type('text/xml');
+      return res.send('<Response><Say>Flow not found.</Say><Hangup/></Response>');
+    }
+
+    const step = flowExecutor.getStep(flow, currentStepId);
+
+    if (!step || step.type !== 'collect_lead') {
+      res.type('text/xml');
+      return res.send('<Response><Say>Invalid step.</Say><Hangup/></Response>');
+    }
+
+    // Store the response temporarily for confirmation
+    const updatedMetadata = {
+      ...metadata,
+      pendingLeadResponse: SpeechResult,
+      leadQuestionIndex: questionIndex,
+    };
+
+    await prisma.callSession.update({
+      where: { id: session.id },
+      data: { metadata: updatedMetadata },
+    });
+
+    // Generate confirmation TwiML
+    const twiml = flowExecutor.generateConfirmLeadResponseTwiML(step, CallSid, questionIndex, SpeechResult);
+
+    res.type('text/xml');
+    res.send(twiml);
+  } catch (error) {
+    console.error('Collect lead response error:', error);
+    res.type('text/xml');
+    res.send('<Response><Say>An error occurred. Goodbye.</Say><Hangup/></Response>');
+  }
+}
+
+/**
+ * Handle lead response confirmation
+ */
+export async function handleConfirmLeadResponse(req: Request, res: Response) {
+  try {
+    const { CallSid, SpeechResult } = req.body;
+
+    console.log(`✅ Confirming lead response for ${CallSid}: "${SpeechResult}"`);
+
+    const session = await callService.getCallSessionByCallSid(CallSid);
+
+    if (!session || !session.metadata) {
+      res.type('text/xml');
+      return res.send('<Response><Say>Session error.</Say><Hangup/></Response>');
+    }
+
+    const metadata = session.metadata as any;
+    const flowType = metadata.flowType;
+    const currentStepId = metadata.currentStepId;
+    const questionIndex = metadata.leadQuestionIndex || 0;
+    const pendingResponse = metadata.pendingLeadResponse;
+
+    // Check if user confirmed
+    const confirmed = SpeechResult && 
+      (SpeechResult.toLowerCase().includes('yes') || 
+       SpeechResult.toLowerCase().includes('correct') ||
+       SpeechResult.toLowerCase().includes('right'));
+
+    if (!confirmed) {
+      // User said no, ask the question again
+      const flow = await flowExecutor.getActiveFlow(session.tenantId, flowType);
+      if (!flow) {
+        res.type('text/xml');
+        return res.send('<Response><Say>Flow not found.</Say><Hangup/></Response>');
+      }
+
+      const step = flowExecutor.getStep(flow, currentStepId);
+      if (!step) {
+        res.type('text/xml');
+        return res.send('<Response><Say>Step not found.</Say><Hangup/></Response>');
+      }
+
+      // Re-ask the same question
+      const twiml = flowExecutor.generateCollectLeadTwiML(step, CallSid, questionIndex);
+      res.type('text/xml');
+      return res.send(twiml);
+    }
+
+    // User confirmed - store the response
+    const leadResponses = metadata.leadResponses || [];
+    
+    const flow = await flowExecutor.getActiveFlow(session.tenantId, flowType);
+    if (!flow) {
+      res.type('text/xml');
+      return res.send('<Response><Say>Flow not found.</Say><Hangup/></Response>');
+    }
+
+    const step = flowExecutor.getStep(flow, currentStepId);
+    if (!step || !step.leadQuestions) {
+      res.type('text/xml');
+      return res.send('<Response><Say>Step error.</Say><Hangup/></Response>');
+    }
+
+    const sortedQuestions = [...step.leadQuestions].sort((a, b) => a.order - b.order);
+    const currentQuestion = sortedQuestions[questionIndex];
+
+    leadResponses.push({
+      questionId: currentQuestion.id,
+      label: currentQuestion.label,
+      question: currentQuestion.question,
+      answer: pendingResponse,
+      order: currentQuestion.order,
+    });
+
+    const nextQuestionIndex = questionIndex + 1;
+
+    // Check if all questions answered
+    if (nextQuestionIndex >= sortedQuestions.length) {
+      // Create the lead
+      await createLeadFromResponses(session, leadResponses);
+
+      // Update metadata
+      await prisma.callSession.update({
+        where: { id: session.id },
+        data: {
+          metadata: {
+            ...metadata,
+            leadResponses,
+            leadCaptured: true,
+            leadQuestionIndex: nextQuestionIndex,
+          },
+          leadCaptured: true,
+        },
+      });
+
+      // Generate completion TwiML
+      const twiml = flowExecutor.generateCollectLeadTwiML(step, CallSid, nextQuestionIndex);
+      res.type('text/xml');
+      return res.send(twiml);
+    }
+
+    // Move to next question
+    await prisma.callSession.update({
+      where: { id: session.id },
+      data: {
+        metadata: {
+          ...metadata,
+          leadResponses,
+          leadQuestionIndex: nextQuestionIndex,
+          pendingLeadResponse: null,
+        },
+      },
+    });
+
+    // Ask next question
+    const twiml = flowExecutor.generateCollectLeadTwiML(step, CallSid, nextQuestionIndex);
+    res.type('text/xml');
+    res.send(twiml);
+  } catch (error) {
+    console.error('Confirm lead response error:', error);
+    res.type('text/xml');
+    res.send('<Response><Say>An error occurred. Goodbye.</Say><Hangup/></Response>');
+  }
+}
+
+/**
+ * Helper function to create a lead from collected responses
+ */
+async function createLeadFromResponses(session: any, leadResponses: any[]) {
+  try {
+    // Create the lead
+    const lead = await prisma.lead.create({
+      data: {
+        tenantId: session.tenantId,
+        callSessionId: session.id,
+        phone: session.fromNumber,
+        source: 'voice_call_flow',
+        status: 'NEW',
+      },
+    });
+
+    // Create custom fields for each response
+    for (const response of leadResponses) {
+      await prisma.leadField.create({
+        data: {
+          leadId: lead.id,
+          label: response.label,
+          value: response.answer,
+          order: response.order,
+        },
+      });
+    }
+
+    console.log(`✅ Created lead ${lead.id} with ${leadResponses.length} custom fields`);
+
+    // Queue email notification
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: session.tenantId },
+      include: { users: true },
+    });
+
+    if (tenant && tenant.users && tenant.users.length > 0) {
+      const adminEmails = tenant.users.filter(u => u.role === 'TENANT_ADMIN').map(u => u.email);
+      
+      for (const email of adminEmails) {
+        await JobProcessor.createJob({
+          type: 'lead_notification',
+          payload: {
+            leadId: lead.id,
+          },
+        });
+      }
+    }
+
+    return lead;
+  } catch (error) {
+    console.error('Error creating lead from responses:', error);
+    throw error;
   }
 }
