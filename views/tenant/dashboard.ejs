@@ -1,35 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - AI Voice Receptionist</title>
-  <link rel="stylesheet" href="/css/style.css">
-</head>
-<body>
-  <nav class="navbar">
+<%- include('../layout', { 
+  user, 
+  tenant,
+  title: 'Dashboard',
+  activeApp: 'voice',
+  userPermissions: [],
+  body: `
     <div class="container">
-      <div class="nav-brand">
-        <a href="/">🤖 AI Voice Receptionist</a>
-      </div>
-      <ul class="nav-menu">
-        <li><a href="/tenant/dashboard" class="active">Dashboard</a></li>
-        <li><a href="/tenant/calls">Calls</a></li>
-        <li><a href="/tenant/leads">Leads</a></li>
-        <li><a href="/admin/tenants/<%= tenant.id %>/flows">Flows</a></li>
-        <li><a href="/tenant/analytics">Analytics</a></li>
-        <li><a href="/tenant/settings">Settings</a></li>
-        <li class="user-menu">
-          <span><%= user.email %></span>
-          <a href="/logout" class="btn btn-sm">Logout</a>
-        </li>
-      </ul>
-    </div>
-  </nav>
-
-  <main class="main-content">
-    <div class="container">
-      <h1><%= tenant ? tenant.name : 'Dashboard' %></h1>
+      <h1>${tenant ? tenant.name : 'Dashboard'}</h1>
       <p class="subtitle">Last 30 days</p>
 
       <div class="stats-grid">
@@ -106,14 +83,5 @@
         </div>
       </div>
     </div>
-  </main>
-
-  <footer class="footer">
-    <div class="container">
-      <p>&copy; <%= new Date().getFullYear() %> AI Voice Receptionist. All rights reserved.</p>
-    </div>
-  </footer>
-
-  <script src="/js/main.js"></script>
-</body>
-</html>
+  `
+}) %>
