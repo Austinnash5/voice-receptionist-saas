@@ -592,7 +592,7 @@ export class CRMController {
       res.render('tenant/crm/dashboard', {
         user: req.user,
         tenant: req.tenant,
-        permissions: req.permissions || [],
+        permissions: req.userPermissions || [],
         stats: { ...stats, ...dealStats },
       });
     } catch (error) {
@@ -618,7 +618,7 @@ export class CRMController {
       res.render('tenant/crm/contacts', {
         user: req.user,
         tenant: req.tenant,
-        permissions: req.permissions || [],
+        permissions: req.userPermissions || [],
         contacts: result.contacts,
         pagination: result.pagination,
         ...filters,
@@ -645,7 +645,7 @@ export class CRMController {
       res.render('tenant/crm/contact-detail', {
         user: req.user,
         tenant: req.tenant,
-        permissions: req.permissions || [],
+        permissions: req.userPermissions || [],
         contact,
       });
     } catch (error) {
@@ -668,7 +668,7 @@ export class CRMController {
       res.render('tenant/crm/contact-new', {
         user: req.user,
         tenant: req.tenant,
-        permissions: req.permissions || [],
+        permissions: req.userPermissions || [],
         companies,
         users,
         availableTags,
@@ -698,7 +698,7 @@ export class CRMController {
       res.render('tenant/crm/contact-edit', {
         user: req.user,
         tenant: req.tenant,
-        permissions: req.permissions || [],
+        permissions: req.userPermissions || [],
         contact,
         companies,
         users,
@@ -764,7 +764,7 @@ export class CRMController {
       res.render('tenant/crm/deals', {
         user: req.user,
         tenant: req.tenant,
-        permissions: req.permissions || [],
+        permissions: req.userPermissions || [],
         deals: result.deals,
         pagination: result.pagination,
         stats,
@@ -808,7 +808,7 @@ export class CRMController {
       res.render('tenant/crm/deal-pipeline', {
         user: req.user,
         tenant: req.tenant,
-        permissions: req.permissions || [],
+        permissions: req.userPermissions || [],
         pipeline,
         pipelines,
         pipelineView,
@@ -833,7 +833,7 @@ export class CRMController {
       res.render('tenant/crm/deal-detail', {
         user: req.user,
         tenant: req.tenant,
-        permissions: req.permissions || [],
+        permissions: req.userPermissions || [],
         deal,
       });
     } catch (error) {
@@ -862,7 +862,7 @@ export class CRMController {
       res.render('tenant/crm/deal-new', {
         user: req.user,
         tenant: req.tenant,
-        permissions: req.permissions || [],
+        permissions: req.userPermissions || [],
         pipelines,
         contacts,
         companies,
@@ -927,7 +927,7 @@ export class CRMController {
       res.render('tenant/crm/companies', {
         user: req.user,
         tenant: req.tenant,
-        permissions: req.permissions || [],
+        permissions: req.userPermissions || [],
         companies,
         pagination: {
           total,
@@ -1003,7 +1003,7 @@ export class CRMController {
       res.render('tenant/crm/tasks', {
         user: req.user,
         tenant: req.tenant,
-        permissions: req.permissions || [],
+        permissions: req.userPermissions || [],
         tasks,
         pagination: {
           total,

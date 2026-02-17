@@ -372,7 +372,7 @@ export class UserManagementController {
       res.render('tenant/settings/team', {
         user: req.user,
         tenant: req.tenant,
-        permissions: req.permissions || [],
+        permissions: req.userPermissions || [],
         users,
         roles,
         stats,
@@ -421,7 +421,7 @@ export class UserManagementController {
       res.render('tenant/settings/roles', {
         user: req.user,
         tenant: req.tenant,
-        permissions: req.permissions || [],
+        permissions: req.userPermissions || [],
         roles,
         allPermissions,
       });

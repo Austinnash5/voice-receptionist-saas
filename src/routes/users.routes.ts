@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import { userManagementController } from '../controllers/userManagementController';
 import { requireAuth } from '../middleware/auth';
-import { requireTenantContext } from '../middleware/tenant';
+import { requireTenantAccess } from '../middleware/tenant';
 import { requirePermission,requireTenantAdmin } from '../middleware/permissions';
 
 const router = Router();
 
 // Apply auth and tenant middleware to all routes
 router.use(requireAuth);
-router.use(requireTenantContext);
+router.use(requireTenantAccess);
 
 // ============================================
 // USERS

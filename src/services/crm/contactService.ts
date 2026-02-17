@@ -284,7 +284,7 @@ export class ContactService {
         ownerId: data.ownerId,
         companyId: data.companyId,
         leadId: data.leadId,
-        notes: data.notes,
+        noteText: data.notes,
         customFields: data.customFields,
         tags: data.tags
           ? {
@@ -365,12 +365,15 @@ export class ContactService {
       delete data.tags;
     }
 
+    // Remove leadId from update data (it's @unique and shouldn't be changed)
+    const { leadId, ...updateData } = data;
+
     const contact = await prisma.contact.update({
       where: {
         id: contactId,
       },
       data: {
-        ...data,
+        ...updateData,
         fullName,
         updatedAt: new Date(),
       },
@@ -497,7 +500,7 @@ export class ContactService {
         phone: lead.phone || undefined,
         lifecycle: 'LEAD',
         source: lead.source,
-        notes: lead.notes || undefined,
+        noteText: lead.notes || undefined,
         ownerId,
         customFields: Object.keys(customFields).length > 0 ? customFields : undefined,
       },

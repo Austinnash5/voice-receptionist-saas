@@ -589,7 +589,7 @@ model Contact {
   
   // Metadata
   lastContactedAt DateTime?
-  notes       String?   @db.Text
+  noteText    String?   @db.Text  // Quick notes field
   customFields Json?    // Flexible custom fields
   
   createdAt   DateTime  @default(now())
@@ -656,7 +656,7 @@ model Company {
   country     String?
   
   status      CompanyStatus @default(ACTIVE)
-  notes       String?  @db.Text
+  noteText    String?  @db.Text  // Quick notes field
   customFields Json?
   
   createdAt   DateTime @default(now())
@@ -842,7 +842,7 @@ model Deal {
   actualCloseDate   DateTime?
   
   lostReason  String?    @db.Text
-  notes       String?    @db.Text
+  noteText    String?    @db.Text  // Quick notes field
   customFields Json?
   
   createdAt   DateTime   @default(now())
