@@ -1,12 +1,21 @@
-<%- include('../layout', { 
-  user, 
-  tenant,
-  title: 'Dashboard',
-  activeApp: 'voice',
-  userPermissions: [],
-  body: `
+<% 
+  const activeApp = 'voice';
+  const userPermissions = [];
+%>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - VoiceCRM Suite</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <%- include('../layout-nav', { user, tenant, activeApp, userPermissions }) %>
+
+  <main class="main-content">
     <div class="container">
-      <h1>${tenant ? tenant.name : 'Dashboard'}</h1>
+      <h1><%= tenant ? tenant.name : 'Dashboard' %></h1>
       <p class="subtitle">Last 30 days</p>
 
       <div class="stats-grid">
@@ -83,5 +92,14 @@
         </div>
       </div>
     </div>
-  `
-}) %>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; <%= new Date().getFullYear() %> VoiceCRM Suite. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>
