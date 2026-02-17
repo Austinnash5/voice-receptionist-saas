@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Roles & Permissions</title>
+</head>
+<body>
+  <%- include('../../layout', { 
+    user, 
+    activeApp: 'crm',
+    userPermissions: permissions || [],
+    body: `
+    <div class="page-header">
+      <h1>Roles & Permissions</h1>
+      <div class="header-actions">
+        ${permissions.includes('users:manage') ? `<button onclick="openCreateRoleModal()" class="btn btn-primary">+ Create Role</button>` : ''}
+      </div>
+    </div>
+
+    <div class="roles-grid">
+      ${roles && roles.length > 0 ? roles.map(role => `
+      <div class="role-card ${role.isSystem ? 'system-role' : ''}">
+        <div class="role-header">
+          <div>
+            <h3>${role.name}</h3>
+            ${role.isSystem ? '<span class="system-badge">System Role</span>' : ''}
+          </div>
+          ${!role.isSystem && permissions.includes('users:manage') ? `
+          <div class="role-actions">
+            <button onclick="editRole('${role.id}')" title="Edit">✏️</button>
+            <button onclick="deleteRole('${role.id}')" title="Delete" class="danger">🗑️</button>
+          </div>
+          ` : ''}
+        </div>
+
+        ${role.description ? `<p class="role-description">${role.description}</p>` : ''}
+
+        <div class="role-stats">
+          <div class="stat">
+            <span class="stat-value">${role._count?.users || 0}</span>
+            <span class="stat-label">Users</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">${role._count?.permissions || role.permissions?.length || 0}</span>
+            <span class="stat-label">Permissions</span>
+          </div>
+        </div>
+
+        ${role.permissions && role.permissions.length > 0 ? `
+        <div class="permissions-preview">
+          <h4>Permissions:</h4>
+          <div class="permissions-list">
+            ${role.permissions.slice(0, 6).map(rp => `
+              <span class="permission-badge">${rp.permission.resource}:${rp.permission.action}</span>
+            `).join('')}
+            ${role.permissions.length > 6 ? `<span class="more-badge">+${role.permissions.length - 6} more</span>` : ''}
+          </div>
+        </div>
+        ` : ''}
+
+        ${permissions.includes('users:manage') ? `
+        <button onclick="openPermissionsModal('${role.id}', '${role.name}')" class="btn btn-secondary btn-block">
+          Manage Permissions
+        </button>
+        ` : ''}
+      </div>
+      `).join('') : '<p class="empty-state">No roles configured</p>'}
+    </div>
+
+    <!-- Create Role Modal -->
+    <div id="createRoleModal" class="modal">
+      <div class="modal-content">
+        <h2>Create New Role</h2>
+        <form id="createRoleForm" onsubmit="createRole(event)">
+          <div class="form-group">
+            <label for="roleName">Role Name <span class="required">*</span></label>
+            <input type="text" id="roleName" name="name" required>
+          </div>
+
+          <div class="form-group">
+            <label for="roleDescription">Description</label>
+            <textarea id="roleDescription" name="description" rows="3"></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeCreateRoleModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create Role</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Permissions Modal -->
+    <div id="permissionsModal" class="modal">
+      <div class="modal-content large">
+        <h2>Manage Permissions: <span id="permissionsRoleName"></span></h2>
+        <form id="permissionsForm" onsubmit="updatePermissions(event)">
+          <input type="hidden" id="permissionsRoleId" name="roleId">
+
+          ${allPermissions ? Object.entries(groupPermissions(allPermissions)).map(([resource, perms]) => `
+          <div class="permission-section">
+            <div class="section-header">
+              <h4>${formatResourceName(resource)}</h4>
+              <button type="button" class="btn btn-sm" onclick="toggleAllInSection('${resource}')">Toggle All</button>
+            </div>
+            <div class="permissions-grid">
+              ${perms.map(perm => `
+              <label class="permission-checkbox">
+                <input type="checkbox" name="permissions" value="${perm.id}" data-resource="${resource}">
+                <span>${perm.action}</span>
+              </label>
+              `).join('')}
+            </div>
+          </div>
+          `).join('') : ''}
+
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closePermissionsModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Permissions</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      const allRoles = ${JSON.stringify(roles || [])};
+      const allPermissions = ${JSON.stringify(allPermissions || [])};
+
+      function groupPermissions(permissions) {
+        return permissions.reduce((acc, perm) => {
+          if (!acc[perm.resource]) {
+            acc[perm.resource] = [];
+          }
+          acc[perm.resource].push(perm);
+          return acc;
+        }, {});
+      }
+
+      function formatResourceName(resource) {
+        return resource.charAt(0).toUpperCase() + resource.slice(1).replace(/_/g, ' ');
+      }
+
+      function openCreateRoleModal() {
+        document.getElementById('createRoleModal').style.display = 'flex';
+      }
+
+      function closeCreateRoleModal() {
+        document.getElementById('createRoleModal').style.display = 'none';
+        document.getElementById('createRoleForm').reset();
+      }
+
+      function createRole(event) {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        const data = Object.fromEntries(formData);
+
+        fetch('/api/users/roles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        }).then(async response => {
+          if (response.ok) {
+            alert('Role created successfully!');
+            location.reload();
+          } else {
+            const error = await response.json();
+            alert('Failed to create role: ' + (error.error || 'Unknown error'));
+          }
+        });
+      }
+
+      function openPermissionsModal(roleId, roleName) {
+        document.getElementById('permissionsRoleId').value = roleId;
+        document.getElementById('permissionsRoleName').textContent = roleName;
+        
+        // Uncheck all
+        document.querySelectorAll('#permissionsForm input[type="checkbox"]').forEach(cb => {
+          cb.checked = false;
+        });
+        
+        // Check role's permissions
+        const role = allRoles.find(r => r.id === roleId);
+        if (role && role.permissions) {
+          role.permissions.forEach(rp => {
+            const checkbox = document.querySelector(\`#permissionsForm input[value="\${rp.permission.id}"]\`);
+            if (checkbox) checkbox.checked = true;
+          });
+        }
+        
+        document.getElementById('permissionsModal').style.display = 'flex';
+      }
+
+      function closePermissionsModal() {
+        document.getElementById('permissionsModal').style.display = 'none';
+      }
+
+      function toggleAllInSection(resource) {
+        const checkboxes = document.querySelectorAll(\`#permissionsForm input[data-resource="\${resource}"]\`);
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        checkboxes.forEach(cb => cb.checked = !allChecked);
+      }
+
+      function updatePermissions(event) {
+        event.preventDefault();
+        const roleId = document.getElementById('permissionsRoleId').value;
+        const formData = new FormData(event.target);
+        const permissionIds = formData.getAll('permissions');
+
+        fetch(\`/api/users/roles/\${roleId}/permissions\`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ permissionIds })
+        }).then(async response => {
+          if (response.ok) {
+            alert('Permissions updated successfully!');
+            location.reload();
+          } else {
+            const error = await response.json();
+            alert('Failed to update permissions: ' + (error.error || 'Unknown error'));
+          }
+        });
+      }
+
+      function editRole(roleId) {
+        const role = allRoles.find(r => r.id === roleId);
+        if (!role) return;
+        
+        const name = prompt('Role name:', role.name);
+        if (!name) return;
+        
+        const description = prompt('Description:', role.description || '');
+        
+        fetch(\`/api/users/roles/\${roleId}\`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, description })
+        }).then(response => {
+          if (response.ok) {
+            alert('Role updated successfully');
+            location.reload();
+          } else {
+            alert('Failed to update role');
+          }
+        });
+      }
+
+      function deleteRole(roleId) {
+        if (confirm('Are you sure you want to delete this role? Users with this role will need to be reassigned.')) {
+          fetch(\`/api/users/roles/\${roleId}\`, {
+            method: 'DELETE'
+          }).then(async response => {
+            if (response.ok) {
+              alert('Role deleted successfully');
+              location.reload();
+            } else {
+              const error = await response.json();
+              alert('Failed to delete role: ' + (error.error || 'Unknown error'));
+            }
+          });
+        }
+      }
+
+      // Close modals when clicking outside
+      window.onclick = function(event) {
+        if (event.target.classList.contains('modal')) {
+          event.target.style.display = 'none';
+        }
+      }
+    </script>
+
+    <style>
+      .roles-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+      }
+
+      .role-card {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+      }
+
+      .role-card.system-role {
+        border-left: 4px solid #667eea;
+      }
+
+      .role-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+      }
+
+      .role-header h3 {
+        margin: 0 0 5px 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .system-badge {
+        background: #667eea;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 500;
+      }
+
+      .role-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .role-actions button {
+        background: none;
+        border: none;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 5px;
+        opacity: 0.6;
+      }
+
+      .role-actions button:hover {
+        opacity: 1;
+      }
+
+      .role-actions button.danger:hover {
+        color: #dc3545;
+      }
+
+      .role-description {
+        color: #666;
+        font-size: 14px;
+        margin: 0;
+      }
+
+      .role-stats {
+        display: flex;
+        gap: 30px;
+        padding: 15px 0;
+        border-top: 1px solid #eee;
+        border-bottom: 1px solid #eee;
+      }
+
+      .role-stats .stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .role-stats .stat-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: #333;
+      }
+
+      .role-stats .stat-label {
+        font-size: 12px;
+        color: #666;
+      }
+
+      .permissions-preview h4 {
+        margin: 0 0 10px 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: #666;
+      }
+
+      .permissions-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .permission-badge {
+        background: #e8f4ff;
+        color: #0066cc;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .more-badge {
+        background: #f0f0f0;
+        color: #666;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .btn-block {
+        width: 100%;
+        margin-top: 10px;
+      }
+
+      .modal-content.large {
+        max-width: 800px;
+      }
+
+      .permission-section {
+        margin-bottom: 25px;
+        padding: 15px;
+        background: #f8f8f8;
+        border-radius: 6px;
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+
+      .section-header h4 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: #333;
+      }
+
+      .btn-sm {
+        font-size: 12px;
+        padding: 4px 12px;
+      }
+
+      .permissions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+      }
+
+      .permission-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .permission-checkbox:hover {
+        background: #e8f4ff;
+        border-color: #0066cc;
+      }
+
+      .permission-checkbox input[type="checkbox"] {
+        cursor: pointer;
+      }
+
+      .permission-checkbox span {
+        font-size: 13px;
+        color: #333;
+      }
+    </style>
+    `
+  }) %>
+</body>
+</html>

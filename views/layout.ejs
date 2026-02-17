@@ -3,34 +3,138 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %>AI Voice Receptionist</title>
+  <title><%= typeof title !== 'undefined' ? title + ' - ' : '' %>VoiceCRM Suite</title>
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <% if (typeof user !== 'undefined' && user) { %>
-  <nav class="navbar">
+  <% 
+    const currentApp = typeof activeApp !== 'undefined' ? activeApp : 'voice';
+    const permissions = typeof userPermissions !== 'undefined' ? userPermissions : [];
+    const hasPermission = (resource, action) => {
+      if (user.role === 'SUPER_ADMIN' || user.role === 'TENANT_ADMIN') return true;
+      return permissions.includes(`${resource}:${action}`);
+    };
+  %>
+  
+  <!-- Main Navigation -->
+  <nav class="navbar-main">
     <div class="container">
       <div class="nav-brand">
-        <a href="/">🤖 AI Voice Receptionist</a>
+        <a href="/">🚀 VoiceCRM Suite</a>
       </div>
-      <ul class="nav-menu">
-        <% if (user.role === 'SUPER_ADMIN') { %>
-          <li><a href="/admin/dashboard">Dashboard</a></li>
-          <li><a href="/admin/tenants">Tenants</a></li>
-          <li><a href="/admin/numbers">Phone Numbers</a></li>
-        <% } else { %>
+      
+      <% if (user.role === 'SUPER_ADMIN') { %>
+        <ul class="nav-apps">
+          <li class="<%= currentApp === 'admin' ? 'active' : '' %>">
+            <a href="/admin/dashboard">Admin Panel</a>
+          </li>
+        </ul>
+      <% } else { %>
+        <ul class="nav-apps">
+          <li class="<%= currentApp === 'voice' ? 'active' : '' %>">
+            <a href="/tenant/dashboard">
+              <span class="nav-icon">📞</span> Voice
+            </a>
+          </li>
+          <% if (hasPermission('crm', 'view')) { %>
+          <li class="<%= currentApp === 'crm' ? 'active' : '' %>">
+            <a href="/tenant/crm/dashboard">
+              <span class="nav-icon">👥</span> CRM
+            </a>
+          </li>
+          <% } %>
+          <% if (hasPermission('sms', 'view')) { %>
+          <li class="<%= currentApp === 'sms' ? 'active' : '' %>">
+            <a href="/tenant/sms/conversations">
+              <span class="nav-icon">💬</span> SMS
+            </a>
+          </li>
+          <% } %>
+          <% if (hasPermission('email', 'view')) { %>
+          <li class="<%= currentApp === 'email' ? 'active' : '' %>">
+            <a href="/tenant/email/campaigns">
+              <span class="nav-icon">✉️</span> Email
+            </a>
+          </li>
+          <% } %>
+          <% if (hasPermission('chatbot', 'view')) { %>
+          <li class="<%= currentApp === 'chatbot' ? 'active' : '' %>">
+            <a href="/tenant/chatbot/config">
+              <span class="nav-icon">🤖</span> Chatbot
+            </a>
+          </li>
+          <% } %>
+        </ul>
+      <% } %>
+      
+      <div class="nav-user">
+        <span class="user-email"><%= user.email %></span>
+        <a href="/tenant/settings" class="btn-icon" title="Settings">⚙️</a>
+        <a href="/logout" class="btn btn-sm">Logout</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Sub Navigation -->
+  <% if (user.role !== 'SUPER_ADMIN') { %>
+  <nav class="navbar-sub">
+    <div class="container">
+      <% if (currentApp === 'voice') { %>
+        <ul class="sub-menu">
           <li><a href="/tenant/dashboard">Dashboard</a></li>
           <li><a href="/tenant/calls">Calls</a></li>
           <li><a href="/tenant/leads">Leads</a></li>
-          <li><a href="/tenant/settings">Settings</a></li>
-        <% } %>
-        <li class="user-menu">
-          <span><%= user.email %></span>
-          <a href="/logout" class="btn btn-sm">Logout</a>
-        </li>
+          <% if (hasPermission('voice', 'configure')) { %>
+          <li><a href="/admin/flows">Call Flows</a></li>
+          <li><a href="/admin/knowledge">Knowledge Base</a></li>
+          <% } %>
+        </ul>
+      <% } else if (currentApp === 'crm' && hasPermission('crm', 'view')) { %>
+        <ul class="sub-menu">
+          <li><a href="/tenant/crm/dashboard">Dashboard</a></li>
+          <li><a href="/tenant/crm/contacts">Contacts</a></li>
+          <li><a href="/tenant/crm/deals">Deals</a></li>
+          <li><a href="/tenant/crm/companies">Companies</a></li>
+          <li><a href="/tenant/crm/tasks">Tasks</a></li>
+        </ul>
+      <% } else if (currentApp === 'sms' && hasPermission('sms', 'view')) { %>
+        <ul class="sub-menu">
+          <li><a href="/tenant/sms/conversations">Conversations</a></li>
+          <% if (hasPermission('sms', 'send')) { %>
+          <li><a href="/tenant/sms/campaigns">Campaigns</a></li>
+          <li><a href="/tenant/sms/templates">Templates</a></li>
+          <% } %>
+        </ul>
+      <% } else if (currentApp === 'email' && hasPermission('email', 'view')) { %>
+        <ul class="sub-menu">
+          <li><a href="/tenant/email/campaigns">Campaigns</a></li>
+          <% if (hasPermission('email', 'send')) { %>
+          <li><a href="/tenant/email/templates">Templates</a></li>
+          <li><a href="/tenant/email/lists">Lists</a></li>
+          <% } %>
+        </ul>
+      <% } else if (currentApp === 'chatbot' && hasPermission('chatbot', 'view')) { %>
+        <ul class="sub-menu">
+          <li><a href="/tenant/chatbot/config">Configuration</a></li>
+          <li><a href="/tenant/chatbot/conversations">Conversations</a></li>
+          <li><a href="/tenant/chatbot/analytics">Analytics</a></li>
+        </ul>
+      <% } %>
+    </div>
+  </nav>
+  <% } else { %>
+  <!-- Admin Sub Navigation -->
+  <nav class="navbar-sub">
+    <div class="container">
+      <ul class="sub-menu">
+        <li><a href="/admin/dashboard">Dashboard</a></li>
+        <li><a href="/admin/tenants">Tenants</a></li>
+        <li><a href="/admin/numbers">Phone Numbers</a></li>
       </ul>
     </div>
   </nav>
+  <% } %>
   <% } %>
 
   <main class="main-content">

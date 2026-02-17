@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tasks</title>
+</head>
+<body>
+  <%- include('../../layout', { 
+    user, 
+    activeApp: 'crm',
+    userPermissions: permissions || [],
+    body: `
+    <div class="page-header">
+      <h1>Tasks</h1>
+      <div class="header-actions">
+        ${permissions.includes('crm:create') ? `<button onclick="openNewTaskModal()" class="btn btn-primary">+ New Task</button>` : ''}
+      </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">✓</div>
+        <div class="stat-value">${stats?.totalTasks || tasks?.length || 0}</div>
+        <div class="stat-label">Total Tasks</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📋</div>
+        <div class="stat-value">${stats?.todoTasks || 0}</div>
+        <div class="stat-label">To Do</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🔄</div>
+        <div class="stat-value">${stats?.inProgressTasks || 0}</div>
+        <div class="stat-label">In Progress</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value">${stats?.completedTasks || 0}</div>
+        <div class="stat-label">Completed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⚠️</div>
+        <div class="stat-value">${stats?.overdueTasks || 0}</div>
+        <div class="stat-label">Overdue</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar">
+      <form method="GET" action="/tenant/crm/tasks">
+        <input type="text" name="search" placeholder="Search tasks..." value="${search || ''}">
+        
+        <select name="status">
+          <option value="">All Status</option>
+          <option value="TODO" ${status === 'TODO' ? 'selected' : ''}>To Do</option>
+          <option value="IN_PROGRESS" ${status === 'IN_PROGRESS' ? 'selected' : ''}>In Progress</option>
+          <option value="COMPLETED" ${status === 'COMPLETED' ? 'selected' : ''}>Completed</option>
+        </select>
+
+        <select name="priority">
+          <option value="">All Priority</option>
+          <option value="LOW" ${priority === 'LOW' ? 'selected' : ''}>Low</option>
+          <option value="MEDIUM" ${priority === 'MEDIUM' ? 'selected' : ''}>Medium</option>
+          <option value="HIGH" ${priority === 'HIGH' ? 'selected' : ''}>High</option>
+        </select>
+
+        <select name="assigneeId">
+          <option value="">All Assignees</option>
+          <option value="${user.id}" ${assigneeId === user.id ? 'selected' : ''}>My Tasks</option>
+          ${users ? users.map(u => `<option value="${u.id}" ${assigneeId === u.id ? 'selected' : ''}>${u.firstName} ${u.lastName}</option>`).join('') : ''}
+        </select>
+
+        <button type="submit" class="btn btn-primary">Filter</button>
+        ${(search || status || priority || assigneeId) ? `<a href="/tenant/crm/tasks" class="btn btn-secondary">Clear</a>` : ''}
+      </form>
+    </div>
+
+    <!-- Tasks List -->
+    ${tasks && tasks.length > 0 ? `
+    <div class="tasks-container">
+      ${tasks.map(task => `
+      <div class="task-card ${task.status === 'COMPLETED' ? 'completed' : ''} ${isOverdue(task.dueDate, task.status) ? 'overdue' : ''}">
+        <div class="task-checkbox">
+          <input type="checkbox" 
+                 ${task.status === 'COMPLETED' ? 'checked' : ''} 
+                 onchange="updateTaskStatus('${task.id}', this.checked)"
+                 ${!permissions.includes('crm:edit') ? 'disabled' : ''}>
+        </div>
+
+        <div class="task-content">
+          <div class="task-header">
+            <h3 class="task-title">${task.title}</h3>
+            <div class="task-badges">
+              <span class="badge badge-${task.priority.toLowerCase()}">${task.priority}</span>
+              <span class="badge badge-${task.status.toLowerCase().replace('_', '-')}">${task.status.replace('_', ' ')}</span>
+            </div>
+          </div>
+
+          ${task.description ? `<div class="task-description">${truncate(task.description, 150)}</div>` : ''}
+
+          <div class="task-meta">
+            ${task.dueDate ? `
+            <div class="meta-item ${isOverdue(task.dueDate, task.status) ? 'overdue-text' : ''}">
+              <span class="meta-icon">📅</span>
+              <span>Due: ${formatDueDate(task.dueDate)}</span>
+            </div>
+            ` : ''}
+
+            ${task.assignee ? `
+            <div class="meta-item">
+              <span class="meta-icon">👤</span>
+              <span>${task.assignee.firstName} ${task.assignee.lastName}</span>
+            </div>
+            ` : ''}
+
+            ${task.contact ? `
+            <div class="meta-item">
+              <span class="meta-icon">👥</span>
+              <a href="/tenant/crm/contacts/${task.contact.id}">${task.contact.fullName || task.contact.email}</a>
+            </div>
+            ` : ''}
+
+            ${task.deal ? `
+            <div class="meta-item">
+              <span class="meta-icon">💼</span>
+              <a href="/tenant/crm/deals/${task.deal.id}">${task.deal.title}</a>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+
+        ${permissions.includes('crm:edit') ? `
+        <div class="task-actions">
+          <button onclick="editTask('${task.id}')" title="Edit">✏️</button>
+          ${permissions.includes('crm:delete') ? `<button onclick="deleteTask('${task.id}')" title="Delete">🗑️</button>` : ''}
+        </div>
+        ` : ''}
+      </div>
+      `).join('')}
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination">
+      <a href="?page=${Math.max(1, (page || 1) - 1)}${getQueryString()}" class="btn btn-secondary" ${(page || 1) <= 1 ? 'disabled' : ''}>Previous</a>
+      <span>Page ${page || 1}</span>
+      <a href="?page=${(page || 1) + 1}${getQueryString()}" class="btn btn-secondary" ${tasks.length < (limit || 50) ? 'disabled' : ''}>Next</a>
+    </div>
+    ` : `
+    <div class="empty-state">
+      <div class="empty-icon">✓</div>
+      <p>No tasks yet</p>
+      ${permissions.includes('crm:create') ? `<button onclick="openNewTaskModal()" class="btn btn-primary">Create First Task</button>` : ''}
+    </div>
+    `}
+
+    <script>
+      function truncate(text, length) {
+        if (!text) return '';
+        return text.length > length ? text.substring(0, length) + '...' : text;
+      }
+
+      function formatDueDate(dateString) {
+        const date = new Date(dateString);
+        const today = new Date();
+        const diffTime = date - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays < 0) {
+          return date.toLocaleDateString() + ' (overdue)';
+        } else if (diffDays === 0) {
+          return 'Today';
+        } else if (diffDays === 1) {
+          return 'Tomorrow';
+        } else if (diffDays <= 7) {
+          return diffDays + ' days';
+        } else {
+          return date.toLocaleDateString();
+        }
+      }
+
+      function isOverdue(dueDateString, status) {
+        if (status === 'COMPLETED' || !dueDateString) return false;
+        const dueDate = new Date(dueDateString);
+        const today = new Date();
+        return dueDate < today;
+      }
+
+      function getQueryString() {
+        const params = new URLSearchParams(window.location.search);
+        params.delete('page');
+        return params.toString() ? '&' + params.toString() : '';
+      }
+
+      function updateTaskStatus(taskId, completed) {
+        fetch(\`/api/crm/tasks/\${taskId}\`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: completed ? 'COMPLETED' : 'TODO' })
+        }).then(response => {
+          if (response.ok) {
+            location.reload();
+          } else {
+            alert('Failed to update task');
+            location.reload();
+          }
+        });
+      }
+
+      function openNewTaskModal() {
+        // Quick task creation
+        const title = prompt('Task title:');
+        if (!title) return;
+        
+        const dueDate = prompt('Due date (YYYY-MM-DD) [optional]:');
+        const priority = prompt('Priority (LOW/MEDIUM/HIGH):', 'MEDIUM');
+        
+        const taskData = { title };
+        if (dueDate) taskData.dueDate = dueDate;
+        if (priority) taskData.priority = priority.toUpperCase();
+        
+        fetch('/api/crm/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(taskData)
+        }).then(response => {
+          if (response.ok) {
+            location.reload();
+          } else {
+            alert('Failed to create task');
+          }
+        });
+      }
+
+      function editTask(taskId) {
+        alert('Edit task modal coming soon. For now, this would open a detailed edit form.');
+      }
+
+      function deleteTask(taskId) {
+        if (confirm('Are you sure you want to delete this task?')) {
+          fetch(\`/api/crm/tasks/\${taskId}\`, {
+            method: 'DELETE'
+          }).then(response => {
+            if (response.ok) {
+              location.reload();
+            } else {
+              alert('Failed to delete task');
+            }
+          });
+        }
+      }
+    </script>
+
+    <style>
+      .tasks-container {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin-top: 20px;
+      }
+
+      .task-card {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 20px;
+        display: flex;
+        gap: 15px;
+        align-items: flex-start;
+        transition: all 0.2s;
+      }
+
+      .task-card:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+
+      .task-card.completed {
+        opacity: 0.6;
+      }
+
+      .task-card.completed .task-title {
+        text-decoration: line-through;
+      }
+
+      .task-card.overdue {
+        border-left: 4px solid #dc3545;
+      }
+
+      .task-checkbox {
+        padding-top: 2px;
+      }
+
+      .task-checkbox input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+      }
+
+      .task-content {
+        flex: 1;
+      }
+
+      .task-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 10px;
+      }
+
+      .task-title {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: #333;
+      }
+
+      .task-badges {
+        display: flex;
+        gap: 8px;
+      }
+
+      .task-description {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 12px;
+        line-height: 1.4;
+      }
+
+      .task-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        font-size: 13px;
+      }
+
+      .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: #666;
+      }
+
+      .meta-item a {
+        color: #0066cc;
+        text-decoration: none;
+      }
+
+      .meta-item a:hover {
+        text-decoration: underline;
+      }
+
+      .overdue-text {
+        color: #dc3545 !important;
+        font-weight: 600;
+      }
+
+      .task-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .task-actions button {
+        background: none;
+        border: none;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 5px;
+        opacity: 0.6;
+        transition: opacity 0.2s;
+      }
+
+      .task-actions button:hover {
+        opacity: 1;
+      }
+    </style>
+    `
+  }) %>
+</body>
+</html>

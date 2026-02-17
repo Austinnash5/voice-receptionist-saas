@@ -578,6 +578,468 @@ export class CRMController {
       res.status(500).json({ error: 'Failed to fetch pipelines' });
     }
   }
+
+  // ============================================
+  // PAGE RENDERING METHODS
+  // ============================================
+
+  async getCRMDashboard(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+      const stats = await contactService.getContactStats(tenantId);
+      const dealStats = await dealService.getDealStats(tenantId);
+
+      res.render('tenant/crm/dashboard', {
+        user: req.user,
+        tenant: req.tenant,
+        permissions: req.permissions || [],
+        stats: { ...stats, ...dealStats },
+      });
+    } catch (error) {
+      console.error('Error rendering CRM dashboard:', error);
+      res.status(500).send('Failed to load CRM dashboard');
+    }
+  }
+
+  async getContactsPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+
+      const filters = {
+        search: req.query.search as string,
+        lifecycle: req.query.lifecycle as string,
+        rating: req.query.rating as string,
+      };
+
+      const result = await contactService.getContacts(tenantId, page, limit, filters);
+
+      res.render('tenant/crm/contacts', {
+        user: req.user,
+        tenant: req.tenant,
+        permissions: req.permissions || [],
+        contacts: result.contacts,
+        pagination: result.pagination,
+        ...filters,
+        page,
+        limit,
+      });
+    } catch (error) {
+      console.error('Error rendering contacts page:', error);
+      res.status(500).send('Failed to load contacts');
+    }
+  }
+
+  async getContactDetailPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+      const contactId = req.params.id;
+
+      const contact = await contactService.getContactById(contactId, tenantId);
+
+      if (!contact) {
+        return res.status(404).send('Contact not found');
+      }
+
+      res.render('tenant/crm/contact-detail', {
+        user: req.user,
+        tenant: req.tenant,
+        permissions: req.permissions || [],
+        contact,
+      });
+    } catch (error) {
+      console.error('Error rendering contact detail:', error);
+      res.status(500).send('Failed to load contact');
+    }
+  }
+
+  async getContactNewPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+
+      // Fetch companies, users, and tags for dropdowns
+      const [companies, users, availableTags] = await Promise.all([
+        prisma.company.findMany({ where: { tenantId }, orderBy: { name: 'asc' } }),
+        prisma.user.findMany({ where: { tenantId, isActive: true }, orderBy: { firstName: 'asc' } }),
+        prisma.tag.findMany({ where: { tenantId }, orderBy: { name: 'asc' } }),
+      ]);
+
+      res.render('tenant/crm/contact-new', {
+        user: req.user,
+        tenant: req.tenant,
+        permissions: req.permissions || [],
+        companies,
+        users,
+        availableTags,
+      });
+    } catch (error) {
+      console.error('Error rendering new contact page:', error);
+      res.status(500).send('Failed to load form');
+    }
+  }
+
+  async getContactEditPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+      const contactId = req.params.id;
+
+      const [contact, companies, users, availableTags] = await Promise.all([
+        contactService.getContactById(contactId, tenantId),
+        prisma.company.findMany({ where: { tenantId }, orderBy: { name: 'asc' } }),
+        prisma.user.findMany({ where: { tenantId, isActive: true }, orderBy: { firstName: 'asc' } }),
+        prisma.tag.findMany({ where: { tenantId }, orderBy: { name: 'asc' } }),
+      ]);
+
+      if (!contact) {
+        return res.status(404).send('Contact not found');
+      }
+
+      res.render('tenant/crm/contact-edit', {
+        user: req.user,
+        tenant: req.tenant,
+        permissions: req.permissions || [],
+        contact,
+        companies,
+        users,
+        availableTags,
+      });
+    } catch (error) {
+      console.error('Error rendering edit contact page:', error);
+      res.status(500).send('Failed to load form');
+    }
+  }
+
+  async createContactPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+      const userId = req.user!.id;
+
+      const contactData = {
+        ...req.body,
+        createdById: userId,
+      };
+
+      const contact = await contactService.createContact(tenantId, contactData);
+      res.redirect(`/tenant/crm/contacts/${contact.id}`);
+    } catch (error) {
+      console.error('Error creating contact:', error);
+      res.status(500).send('Failed to create contact');
+    }
+  }
+
+  async updateContactPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+      const contactId = req.params.id;
+
+      await contactService.updateContact(contactId, tenantId, req.body);
+      res.redirect(`/tenant/crm/contacts/${contactId}`);
+    } catch (error) {
+      console.error('Error updating contact:', error);
+      res.status(500).send('Failed to update contact');
+    }
+  }
+
+  async getDealsPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+
+      const filters = {
+        search: req.query.search as string,
+        status: req.query.status as string,
+        pipelineId: req.query.pipelineId as string,
+        ownerId: req.query.ownerId as string,
+      };
+
+      const [result, stats, pipelines, users] = await Promise.all([
+        dealService.getDeals(tenantId, page, limit, filters),
+        dealService.getDealStats(tenantId),
+        prisma.pipeline.findMany({ where: { tenantId, isActive: true } }),
+        prisma.user.findMany({ where: { tenantId, isActive: true }, orderBy: { firstName: 'asc' } }),
+      ]);
+
+      res.render('tenant/crm/deals', {
+        user: req.user,
+        tenant: req.tenant,
+        permissions: req.permissions || [],
+        deals: result.deals,
+        pagination: result.pagination,
+        stats,
+        pipelines,
+        users,
+        ...filters,
+        page,
+        limit,
+      });
+    } catch (error) {
+      console.error('Error rendering deals page:', error);
+      res.status(500).send('Failed to load deals');
+    }
+  }
+
+  async getDealPipelinePage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+      const pipelineId = req.query.pipelineId as string;
+
+      // Get all pipelines
+      const pipelines = await prisma.pipeline.findMany({
+        where: { tenantId, isActive: true },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      // Use first pipeline if none specified
+      const selectedPipelineId = pipelineId || pipelines[0]?.id;
+
+      if (!selectedPipelineId) {
+        // Initialize default pipeline if none exist
+        await dealService.initializeDefaultPipeline(tenantId);
+        return res.redirect('/tenant/crm/deals/pipeline');
+      }
+
+      const [pipeline, pipelineView] = await Promise.all([
+        prisma.pipeline.findUnique({ where: { id: selectedPipelineId } }),
+        dealService.getPipelineView(selectedPipelineId, tenantId),
+      ]);
+
+      res.render('tenant/crm/deal-pipeline', {
+        user: req.user,
+        tenant: req.tenant,
+        permissions: req.permissions || [],
+        pipeline,
+        pipelines,
+        pipelineView,
+      });
+    } catch (error) {
+      console.error('Error rendering pipeline page:', error);
+      res.status(500).send('Failed to load pipeline');
+    }
+  }
+
+  async getDealDetailPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+      const dealId = req.params.id;
+
+      const deal = await dealService.getDealById(dealId, tenantId);
+
+      if (!deal) {
+        return res.status(404).send('Deal not found');
+      }
+
+      res.render('tenant/crm/deal-detail', {
+        user: req.user,
+        tenant: req.tenant,
+        permissions: req.permissions || [],
+        deal,
+      });
+    } catch (error) {
+      console.error('Error rendering deal detail:', error);
+      res.status(500).send('Failed to load deal');
+    }
+  }
+
+  async getDealNewPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+
+      const [pipelines, contacts, companies, users] = await Promise.all([
+        prisma.pipeline.findMany({
+          where: { tenantId, isActive: true },
+          include: { stages: { orderBy: { order: 'asc' } } },
+        }),
+        prisma.contact.findMany({
+          where: { tenantId, status: { not: 'DELETED' } },
+          orderBy: { firstName: 'asc' },
+        }),
+        prisma.company.findMany({ where: { tenantId }, orderBy: { name: 'asc' } }),
+        prisma.user.findMany({ where: { tenantId, isActive: true }, orderBy: { firstName: 'asc' } }),
+      ]);
+
+      res.render('tenant/crm/deal-new', {
+        user: req.user,
+        tenant: req.tenant,
+        permissions: req.permissions || [],
+        pipelines,
+        contacts,
+        companies,
+        users,
+        pipelineId: req.query.pipelineId as string,
+        stageId: req.query.stageId as string,
+      });
+    } catch (error) {
+      console.error('Error rendering new deal page:', error);
+      res.status(500).send('Failed to load form');
+    }
+  }
+
+  async createDealPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+      const userId = req.user!.id;
+
+      const dealData = {
+        ...req.body,
+        createdById: userId,
+      };
+
+      const deal = await dealService.createDeal(tenantId, dealData);
+      res.redirect(`/tenant/crm/deals/${deal.id}`);
+    } catch (error) {
+      console.error('Error creating deal:', error);
+      res.status(500).send('Failed to create deal');
+    }
+  }
+
+  async getCompaniesPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const search = req.query.search as string;
+
+      const where: any = { tenantId };
+      if (search) {
+        where.OR = [
+          { name: { contains: search, mode: 'insensitive' } },
+          { website: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+
+      const [companies, total] = await Promise.all([
+        prisma.company.findMany({
+          where,
+          include: {
+            _count: {
+              select: { contacts: true, deals: true },
+            },
+          },
+          skip: (page - 1) * limit,
+          take: limit,
+          orderBy: { name: 'asc' },
+        }),
+        prisma.company.count({ where }),
+      ]);
+
+      res.render('tenant/crm/companies', {
+        user: req.user,
+        tenant: req.tenant,
+        permissions: req.permissions || [],
+        companies,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+        search,
+        page,
+        limit,
+      });
+    } catch (error) {
+      console.error('Error rendering companies page:', error);
+      res.status(500).send('Failed to load companies');
+    }
+  }
+
+  async getTasksPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+
+      const filters = {
+        search: req.query.search as string,
+        status: req.query.status as string,
+        priority: req.query.priority as string,
+        assigneeId: req.query.assigneeId as string,
+      };
+
+      const where: any = { tenantId };
+      if (filters.search) {
+        where.OR = [
+          { title: { contains: filters.search, mode: 'insensitive' } },
+          { description: { contains: filters.search, mode: 'insensitive' } },
+        ];
+      }
+      if (filters.status) where.status = filters.status;
+      if (filters.priority) where.priority = filters.priority;
+      if (filters.assigneeId) where.assigneeId = filters.assigneeId;
+
+      const [tasks, total, users] = await Promise.all([
+        prisma.task.findMany({
+          where,
+          include: {
+            assignee: true,
+            contact: true,
+            deal: true,
+          },
+          skip: (page - 1) * limit,
+          take: limit,
+          orderBy: { dueDate: 'asc' },
+        }),
+        prisma.task.count({ where }),
+        prisma.user.findMany({ where: { tenantId, isActive: true }, orderBy: { firstName: 'asc' } }),
+      ]);
+
+      // Calculate stats
+      const stats = {
+        totalTasks: total,
+        todoTasks: await prisma.task.count({ where: { tenantId, status: 'TODO' } }),
+        inProgressTasks: await prisma.task.count({ where: { tenantId, status: 'IN_PROGRESS' } }),
+        completedTasks: await prisma.task.count({ where: { tenantId, status: 'COMPLETED' } }),
+        overdueTasks: await prisma.task.count({
+          where: {
+            tenantId,
+            status: { not: 'COMPLETED' },
+            dueDate: { lt: new Date() },
+          },
+        }),
+      };
+
+      res.render('tenant/crm/tasks', {
+        user: req.user,
+        tenant: req.tenant,
+        permissions: req.permissions || [],
+        tasks,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+        stats,
+        users,
+        ...filters,
+        page,
+        limit,
+      });
+    } catch (error) {
+      console.error('Error rendering tasks page:', error);
+      res.status(500).send('Failed to load tasks');
+    }
+  }
 }
 
 export const crmController = new CRMController();
+
+// Export page rendering functions
+export const {
+  getCRMDashboard,
+  getContactsPage,
+  getContactDetailPage,
+  getContactNewPage,
+  getContactEditPage,
+  createContactPage,
+  updateContactPage,
+  getDealsPage,
+  getDealPipelinePage,
+  getDealDetailPage,
+  getDealNewPage,
+  createDealPage,
+  getCompaniesPage,
+  getTasksPage,
+} = crmController;

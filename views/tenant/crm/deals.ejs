@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Deals</title>
+</head>
+<body>
+  <%- include('../../layout', { 
+    user, 
+    activeApp: 'crm',
+    userPermissions: permissions || [],
+    body: `
+    <div class="page-header">
+      <h1>Deals</h1>
+      <div class="header-actions">
+        <a href="/tenant/crm/deals/pipeline" class="btn btn-secondary">Pipeline View</a>
+        ${permissions.includes('crm:create') ? `<a href="/tenant/crm/deals/new" class="btn btn-primary">+ New Deal</a>` : ''}
+      </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">💼</div>
+        <div class="stat-value">${stats?.totalDeals || deals?.length || 0}</div>
+        <div class="stat-label">Total Deals</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-value">${stats?.openDeals || 0}</div>
+        <div class="stat-label">Open</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🎉</div>
+        <div class="stat-value">${stats?.wonDeals || 0}</div>
+        <div class="stat-label">Won</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💰</div>
+        <div class="stat-value">$${formatNumber(stats?.totalValue || 0)}</div>
+        <div class="stat-label">Total Value</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-value">$${formatNumber(stats?.wonValue || 0)}</div>
+        <div class="stat-label">Won Value</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-value">${stats?.winRate || 0}%</div>
+        <div class="stat-label">Win Rate</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar">
+      <form method="GET" action="/tenant/crm/deals">
+        <input type="text" name="search" placeholder="Search deals..." value="${search || ''}">
+        
+        <select name="status">
+          <option value="">All Status</option>
+          <option value="OPEN" ${status === 'OPEN' ? 'selected' : ''}>Open</option>
+          <option value="WON" ${status === 'WON' ? 'selected' : ''}>Won</option>
+          <option value="LOST" ${status === 'LOST' ? 'selected' : ''}>Lost</option>
+        </select>
+
+        <select name="pipelineId">
+          <option value="">All Pipelines</option>
+          ${pipelines ? pipelines.map(p => `<option value="${p.id}" ${pipelineId === p.id ? 'selected' : ''}>${p.name}</option>`).join('') : ''}
+        </select>
+
+        <select name="ownerId">
+          <option value="">All Owners</option>
+          ${users ? users.map(u => `<option value="${u.id}" ${ownerId === u.id ? 'selected' : ''}>${u.firstName} ${u.lastName}</option>`).join('') : ''}
+        </select>
+
+        <button type="submit" class="btn btn-primary">Filter</button>
+        ${(search || status || pipelineId || ownerId) ? `<a href="/tenant/crm/deals" class="btn btn-secondary">Clear</a>` : ''}
+      </form>
+    </div>
+
+    <!-- Deals Table -->
+    ${deals && deals.length > 0 ? `
+    <div class="data-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Deal</th>
+            <th>Contact</th>
+            <th>Company</th>
+            <th>Pipeline / Stage</th>
+            <th>Value</th>
+            <th>Status</th>
+            <th>Owner</th>
+            <th>Close Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${deals.map(deal => `
+          <tr>
+            <td><a href="/tenant/crm/deals/${deal.id}">${deal.title}</a></td>
+            <td>${deal.contact ? `<a href="/tenant/crm/contacts/${deal.contact.id}">${deal.contact.fullName || deal.contact.email}</a>` : '-'}</td>
+            <td>${deal.company ? `<a href="/tenant/crm/companies/${deal.company.id}">${deal.company.name}</a>` : '-'}</td>
+            <td>
+              ${deal.pipeline?.name || 'Unknown'} • 
+              <span class="stage-badge">${deal.stage?.name || 'Unknown'}</span>
+            </td>
+            <td>${deal.value ? '$' + formatNumber(deal.value) : '-'}</td>
+            <td><span class="badge badge-${deal.status.toLowerCase()}">${deal.status}</span></td>
+            <td>${deal.owner ? deal.owner.firstName + ' ' + deal.owner.lastName : 'Unassigned'}</td>
+            <td>${deal.expectedCloseDate ? new Date(deal.expectedCloseDate).toLocaleDateString() : '-'}</td>
+            <td class="table-actions">
+              <a href="/tenant/crm/deals/${deal.id}" title="View">👁️</a>
+              ${permissions.includes('crm:edit') ? `<a href="/tenant/crm/deals/${deal.id}/edit" title="Edit">✏️</a>` : ''}
+            </td>
+          </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination">
+      <a href="?page=${Math.max(1, (page || 1) - 1)}${getQueryString()}" class="btn btn-secondary" ${(page || 1) <= 1 ? 'disabled' : ''}>Previous</a>
+      <span>Page ${page || 1}</span>
+      <a href="?page=${(page || 1) + 1}${getQueryString()}" class="btn btn-secondary" ${deals.length < (limit || 50) ? 'disabled' : ''}>Next</a>
+    </div>
+    ` : `
+    <div class="empty-state">
+      <div class="empty-icon">💼</div>
+      <p>No deals yet</p>
+      ${permissions.includes('crm:create') ? `<a href="/tenant/crm/deals/new" class="btn btn-primary">Create First Deal</a>` : ''}
+    </div>
+    `}
+
+    <script>
+      function formatNumber(num) {
+        return new Intl.NumberFormat('en-US').format(num);
+      }
+
+      function getQueryString() {
+        const params = new URLSearchParams(window.location.search);
+        params.delete('page');
+        return params.toString() ? '&' + params.toString() : '';
+      }
+    </script>
+    `
+  }) %>
+</body>
+</html>

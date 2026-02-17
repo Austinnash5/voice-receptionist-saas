@@ -311,6 +311,128 @@ export class UserManagementController {
       res.status(500).json({ error: 'Failed to assign role' });
     }
   }
+
+  // ============================================
+  // PAGE RENDERING METHODS
+  // ============================================
+
+  async getTeamPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+
+      const filters = {
+        search: req.query.search as string,
+        roleId: req.query.roleId as string,
+        isActive: req.query.isActive as string,
+      };
+
+      const where: any = { tenantId };
+      if (filters.search) {
+        where.OR = [
+          { email: { contains: filters.search, mode: 'insensitive' } },
+          { firstName: { contains: filters.search, mode: 'insensitive' } },
+          { lastName: { contains: filters.search, mode: 'insensitive' } },
+        ];
+      }
+      if (filters.roleId) where.roleId = filters.roleId;
+      if (filters.isActive) where.isActive = filters.isActive === 'true';
+
+      const [users, total, roles] = await Promise.all([
+        prisma.user.findMany({
+          where,
+          include: {
+            role: true,
+            invitedBy: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+          skip: (page - 1) * limit,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.user.count({ where }),
+        prisma.role.findMany({
+          where: { tenantId },
+          orderBy: { name: 'asc' },
+        }),
+      ]);
+
+      const stats = {
+        totalUsers: total,
+        activeUsers: await prisma.user.count({ where: { tenantId, isActive: true } }),
+        inactiveUsers: await prisma.user.count({ where: { tenantId, isActive: false } }),
+        totalRoles: await prisma.role.count({ where: { tenantId } }),
+      };
+
+      res.render('tenant/settings/team', {
+        user: req.user,
+        tenant: req.tenant,
+        permissions: req.permissions || [],
+        users,
+        roles,
+        stats,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
+        ...filters,
+        page,
+        limit,
+      });
+    } catch (error) {
+      console.error('Error rendering team page:', error);
+      res.status(500).send('Failed to load team page');
+    }
+  }
+
+  async getRolesPage(req: Request, res: Response) {
+    try {
+      const tenantId = req.tenant!.id;
+
+      const [roles, allPermissions] = await Promise.all([
+        prisma.role.findMany({
+          where: { tenantId },
+          include: {
+            permissions: {
+              include: {
+                permission: true,
+              },
+            },
+            _count: {
+              select: {
+                users: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        }),
+        prisma.permission.findMany({
+          orderBy: [{ resource: 'asc' }, { action: 'asc' }],
+        }),
+      ]);
+
+      res.render('tenant/settings/roles', {
+        user: req.user,
+        tenant: req.tenant,
+        permissions: req.permissions || [],
+        roles,
+        allPermissions,
+      });
+    } catch (error) {
+      console.error('Error rendering roles page:', error);
+      res.status(500).send('Failed to load roles page');
+    }
+  }
 }
 
 export const userManagementController = new UserManagementController();
+
+// Export page rendering functions
+export const { getTeamPage, getRolesPage } = userManagementController;

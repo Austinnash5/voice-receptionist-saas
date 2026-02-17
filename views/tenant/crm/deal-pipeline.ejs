@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Deal Pipeline</title>
+</head>
+<body>
+  <%- include('../../layout', { 
+    user, 
+    activeApp: 'crm',
+    userPermissions: permissions || [],
+    body: `
+    <div class="page-header">
+      <h1>Pipeline: ${pipeline?.name || 'Unknown'}</h1>
+      <div class="header-actions">
+        <select id="pipelineSelector" onchange="window.location.href='/tenant/crm/deals/pipeline?pipelineId=' + this.value">
+          ${pipelines ? pipelines.map(p => `<option value="${p.id}" ${p.id === pipeline?.id ? 'selected' : ''}>${p.name}</option>`).join('') : ''}
+        </select>
+        <a href="/tenant/crm/deals" class="btn btn-secondary">List View</a>
+        ${permissions.includes('crm:create') ? `<a href="/tenant/crm/deals/new" class="btn btn-primary">+ New Deal</a>` : ''}
+      </div>
+    </div>
+
+    <!-- Pipeline Stats -->
+    <div class="pipeline-stats">
+      <div class="stat">
+        <span class="stat-label">Total Deals:</span>
+        <span class="stat-value">${pipelineView?.totalDeals || 0}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Total Value:</span>
+        <span class="stat-value">$${formatNumber(pipelineView?.totalValue || 0)}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Weighted Value:</span>
+        <span class="stat-value">$${formatNumber(pipelineView?.weightedValue || 0)}</span>
+      </div>
+    </div>
+
+    <!-- Kanban Board -->
+    <div class="kanban-board">
+      ${pipelineView?.stages ? pipelineView.stages.map(stage => `
+      <div class="kanban-column" data-stage-id="${stage.id}">
+        <div class="kanban-header">
+          <h3>${stage.name}</h3>
+          <div class="stage-meta">
+            <span class="deal-count">${stage.deals?.length || 0} deals</span>
+            <span class="stage-value">$${formatNumber(stage.totalValue || 0)}</span>
+          </div>
+          ${stage.probability ? `<div class="stage-probability">${stage.probability}% probability</div>` : ''}
+        </div>
+
+        <div class="kanban-deals" data-stage-id="${stage.id}">
+          ${stage.deals && stage.deals.length > 0 ? stage.deals.map(deal => `
+          <div class="deal-card" data-deal-id="${deal.id}" draggable="${permissions.includes('crm:edit') ? 'true' : 'false'}">
+            <div class="deal-card-header">
+              <a href="/tenant/crm/deals/${deal.id}" class="deal-title">${deal.title}</a>
+              ${deal.value ? `<span class="deal-value">$${formatNumber(deal.value)}</span>` : ''}
+            </div>
+
+            ${deal.contact ? `
+            <div class="deal-contact">
+              <span class="deal-icon">👤</span>
+              <a href="/tenant/crm/contacts/${deal.contact.id}">${deal.contact.fullName || deal.contact.email}</a>
+            </div>
+            ` : ''}
+
+            ${deal.company ? `
+            <div class="deal-company">
+              <span class="deal-icon">🏢</span>
+              ${deal.company.name}
+            </div>
+            ` : ''}
+
+            <div class="deal-card-footer">
+              ${deal.owner ? `<span class="deal-owner">${deal.owner.firstName} ${deal.owner.lastName}</span>` : ''}
+              ${deal.expectedCloseDate ? `<span class="deal-date">📅 ${formatDate(deal.expectedCloseDate)}</span>` : ''}
+            </div>
+          </div>
+          `).join('') : '<div class="empty-column">No deals in this stage</div>'}
+        </div>
+
+        ${permissions.includes('crm:create') ? `
+        <button class="add-deal-btn" onclick="openNewDealModal('${stage.id}')">+ Add Deal</button>
+        ` : ''}
+      </div>
+      `).join('') : '<p>No stages configured for this pipeline</p>'}
+    </div>
+
+    <script>
+      function formatNumber(num) {
+        return new Intl.NumberFormat('en-US').format(num);
+      }
+
+      function formatDate(dateString) {
+        const date = new Date(dateString);
+        const today = new Date();
+        const diffTime = date - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays < 0) {
+          return date.toLocaleDateString() + ' (overdue)';
+        } else if (diffDays === 0) {
+          return 'Today';
+        } else if (diffDays === 1) {
+          return 'Tomorrow';
+        } else if (diffDays <= 7) {
+          return diffDays + ' days';
+        } else {
+          return date.toLocaleDateString();
+        }
+      }
+
+      // Drag and Drop functionality
+      const canEdit = ${permissions.includes('crm:edit') ? 'true' : 'false'};
+      
+      if (canEdit) {
+        let draggedDeal = null;
+
+        // Make deal cards draggable
+        document.querySelectorAll('.deal-card').forEach(card => {
+          card.addEventListener('dragstart', function(e) {
+            draggedDeal = this;
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+          });
+
+          card.addEventListener('dragend', function(e) {
+            this.classList.remove('dragging');
+            document.querySelectorAll('.kanban-deals').forEach(col => {
+              col.classList.remove('drag-over');
+            });
+          });
+        });
+
+        // Make columns droppable
+        document.querySelectorAll('.kanban-deals').forEach(column => {
+          column.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            this.classList.add('drag-over');
+          });
+
+          column.addEventListener('dragleave', function(e) {
+            if (e.target === this) {
+              this.classList.remove('drag-over');
+            }
+          });
+
+          column.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            
+            if (draggedDeal) {
+              const dealId = draggedDeal.dataset.dealId;
+              const newStageId = this.dataset.stageId;
+              
+              // Update deal stage via API
+              updateDealStage(dealId, newStageId);
+              
+              // Move card in UI
+              this.appendChild(draggedDeal);
+              
+              // Remove empty state if exists
+              const emptyState = this.querySelector('.empty-column');
+              if (emptyState) emptyState.remove();
+            }
+          });
+        });
+
+        function updateDealStage(dealId, stageId) {
+          fetch(\`/api/crm/deals/\${dealId}\`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stageId: stageId })
+          })
+          .then(response => {
+            if (response.ok) {
+              // Show success notification
+              showNotification('Deal moved successfully');
+              // Reload to update stats
+              setTimeout(() => location.reload(), 1000);
+            } else {
+              // Revert on failure
+              showNotification('Failed to move deal', 'error');
+              location.reload();
+            }
+          })
+          .catch(err => {
+            showNotification('Error updating deal', 'error');
+            location.reload();
+          });
+        }
+      }
+
+      function openNewDealModal(stageId) {
+        // For now, redirect to new deal page with stage pre-selected
+        window.location.href = \`/tenant/crm/deals/new?stageId=\${stageId}&pipelineId=${pipeline?.id || ''}\`;
+      }
+
+      function showNotification(message, type = 'success') {
+        const notification = document.createElement('div');
+        notification.className = \`notification notification-\${type}\`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+          notification.classList.add('show');
+        }, 10);
+        
+        setTimeout(() => {
+          notification.classList.remove('show');
+          setTimeout(() => notification.remove(), 300);
+        }, 3000);
+      }
+    </script>
+
+    <style>
+      .kanban-board {
+        display: flex;
+        gap: 20px;
+        overflow-x: auto;
+        padding: 20px 0;
+        min-height: 600px;
+      }
+
+      .kanban-column {
+        flex: 0 0 300px;
+        background: #f5f5f5;
+        border-radius: 8px;
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .kanban-header {
+        margin-bottom: 15px;
+      }
+
+      .kanban-header h3 {
+        margin: 0 0 10px 0;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .stage-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: #666;
+      }
+
+      .stage-probability {
+        font-size: 11px;
+        color: #999;
+        margin-top: 5px;
+      }
+
+      .kanban-deals {
+        flex: 1;
+        min-height: 200px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .kanban-deals.drag-over {
+        background: #e8f4ff;
+        border: 2px dashed #0066cc;
+        border-radius: 4px;
+      }
+
+      .deal-card {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 12px;
+        cursor: pointer;
+        transition: box-shadow 0.2s;
+      }
+
+      .deal-card:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+
+      .deal-card.dragging {
+        opacity: 0.5;
+      }
+
+      .deal-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 10px;
+      }
+
+      .deal-title {
+        font-weight: 600;
+        font-size: 14px;
+        color: #333;
+        text-decoration: none;
+        flex: 1;
+      }
+
+      .deal-title:hover {
+        color: #0066cc;
+      }
+
+      .deal-value {
+        font-weight: 700;
+        color: #28a745;
+        font-size: 14px;
+        margin-left: 8px;
+      }
+
+      .deal-contact, .deal-company {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .deal-icon {
+        font-size: 12px;
+      }
+
+      .deal-card-footer {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: #999;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #eee;
+      }
+
+      .add-deal-btn {
+        margin-top: 10px;
+        padding: 8px;
+        background: white;
+        border: 1px dashed #ccc;
+        border-radius: 4px;
+        cursor: pointer;
+        color: #666;
+        font-size: 13px;
+      }
+
+      .add-deal-btn:hover {
+        background: #f8f8f8;
+        border-color: #0066cc;
+        color: #0066cc;
+      }
+
+      .empty-column {
+        padding: 20px;
+        text-align: center;
+        color: #999;
+        font-size: 13px;
+      }
+
+      .pipeline-stats {
+        display: flex;
+        gap: 30px;
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #f8f8f8;
+        border-radius: 6px;
+      }
+
+      .pipeline-stats .stat {
+        display: flex;
+        gap: 8px;
+      }
+
+      .pipeline-stats .stat-label {
+        color: #666;
+        font-size: 14px;
+      }
+
+      .pipeline-stats .stat-value {
+        font-weight: 600;
+        color: #333;
+        font-size: 14px;
+      }
+
+      .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 6px;
+        background: #28a745;
+        color: white;
+        font-size: 14px;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: all 0.3s ease;
+        z-index: 9999;
+      }
+
+      .notification.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .notification-error {
+        background: #dc3545;
+      }
+    </style>
+    `
+  }) %>
+</body>
+</html>

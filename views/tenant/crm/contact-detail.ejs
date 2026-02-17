@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>${contact.fullName || 'Contact'} - Contact Detail</title>
+</head>
+<body>
+  <%- include('../../layout', { 
+    user, 
+    activeApp: 'crm',
+    userPermissions: permissions || [],
+    body: `
+    <div class="page-header">
+      <div class="breadcrumb">
+        <a href="/tenant/crm/contacts">Contacts</a> / ${contact.fullName || 'Unnamed'}
+      </div>
+      <div class="header-actions">
+        ${permissions.includes('crm:edit') ? `<a href="/tenant/crm/contacts/${contact.id}/edit" class="btn">Edit Contact</a>` : ''}
+      </div>
+    </div>
+
+    <div class="contact-detail-layout">
+      <!-- Left Sidebar - Contact Info -->
+      <aside class="contact-sidebar">
+        <div class="contact-header">
+          <div class="contact-avatar">${getInitials(contact.fullName || contact.email)}</div>
+          <h2>${contact.fullName || 'Unnamed'}</h2>
+          ${contact.title ? `<div class="contact-title">${contact.title}</div>` : ''}
+          ${contact.company ? `<div class="contact-company">${contact.company.name}</div>` : ''}
+        </div>
+
+        <div class="contact-meta">
+          <div class="meta-item">
+            <span class="meta-label">Lifecycle</span>
+            <span class="badge badge-${contact.lifecycle.toLowerCase()}">${contact.lifecycle}</span>
+          </div>
+          ${contact.rating ? `
+          <div class="meta-item">
+            <span class="meta-label">Rating</span>
+            <span class="rating-${contact.rating.toLowerCase()}">${getRatingIcon(contact.rating)} ${contact.rating}</span>
+          </div>
+          ` : ''}
+          ${contact.owner ? `
+          <div class="meta-item">
+            <span class="meta-label">Owner</span>
+            <span>${contact.owner.firstName} ${contact.owner.lastName}</span>
+          </div>
+          ` : ''}
+        </div>
+
+        <div class="contact-info">
+          ${contact.email ? `
+          <div class="info-item">
+            <span class="info-icon">✉️</span>
+            <a href="mailto:${contact.email}">${contact.email}</a>
+          </div>
+          ` : ''}
+          ${contact.phone ? `
+          <div class="info-item">
+            <span class="info-icon">📞</span>
+            <a href="tel:${contact.phone}">${contact.phone}</a>
+          </div>
+          ` : ''}
+          ${contact.mobile ? `
+          <div class="info-item">
+            <span class="info-icon">📱</span>
+            <a href="tel:${contact.mobile}">${contact.mobile}</a>
+          </div>
+          ` : ''}
+          ${contact.website ? `
+          <div class="info-item">
+            <span class="info-icon">🌐</span>
+            <a href="${contact.website}" target="_blank">${contact.website}</a>
+          </div>
+          ` : ''}
+          ${contact.address ? `
+          <div class="info-item">
+            <span class="info-icon">📍</span>
+            <span>${contact.address}${contact.city ? ', ' + contact.city : ''}${contact.state ? ', ' + contact.state : ''}</span>
+          </div>
+          ` : ''}
+        </div>
+
+        ${contact.tags && contact.tags.length > 0 ? `
+        <div class="contact-tags">
+          <div class="tags-label">Tags</div>
+          <div class="tags">
+            ${contact.tags.map(ct => `
+              <span class="tag" style="background-color: ${ct.tag.color || '#ccc'}">${ct.tag.name}</span>
+            `).join('')}
+          </div>
+        </div>
+        ` : ''}
+
+        <div class="contact-stats">
+          <div class="stat-item">
+            <div class="stat-value">${contact._count?.deals || contact.deals?.length || 0}</div>
+            <div class="stat-label">Deals</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">${contact._count?.tasks || contact.tasks?.length || 0}</div>
+            <div class="stat-label">Tasks</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">${contact._count?.activities || contact.activities?.length || 0}</div>
+            <div class="stat-label">Activities</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Content Area -->
+      <main class="contact-main">
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tab active" data-tab="timeline">Timeline</button>
+          <button class="tab" data-tab="deals">Deals (${contact.deals?.length || 0})</button>
+          <button class="tab" data-tab="tasks">Tasks (${contact.tasks?.length || 0})</button>
+          <button class="tab" data-tab="notes">Notes (${contact.notes?.length || 0})</button>
+        </div>
+
+        <!-- Timeline Tab -->
+        <div class="tab-content active" id="tab-timeline">
+          ${permissions.includes('crm:edit') ? `
+          <div class="add-note-form">
+            <form method="POST" action="/tenant/crm/contacts/${contact.id}/notes">
+              <textarea name="content" placeholder="Add a note..." rows="3" required></textarea>
+              <div class="form-actions">
+                <label>
+                  <input type="checkbox" name="isPinned" value="true">
+                  Pin this note
+                </label>
+                <button type="submit" class="btn btn-primary">Add Note</button>
+              </div>
+            </form>
+          </div>
+          ` : ''}
+
+          <div class="timeline">
+            ${getTimelineHTML(contact)}
+          </div>
+        </div>
+
+        <!-- Deals Tab -->
+        <div class="tab-content" id="tab-deals">
+          ${contact.deals && contact.deals.length > 0 ? `
+            <div class="deals-list">
+              ${contact.deals.map(deal => `
+                <a href="/tenant/crm/deals/${deal.id}" class="deal-card">
+                  <div class="deal-header">
+                    <h4>${deal.title}</h4>
+                    <span class="badge badge-${deal.status.toLowerCase()}">${deal.status}</span>
+                  </div>
+                  <div class="deal-meta">
+                    <span>${deal.pipeline?.name} • ${deal.stage?.name}</span>
+                    ${deal.value ? `<span class="deal-value">$${formatNumber(deal.value)}</span>` : ''}
+                  </div>
+                </a>
+              `).join('')}
+            </div>
+          ` : '<p class="empty-state">No deals yet</p>'}
+        </div>
+
+        <!-- Tasks Tab -->
+        <div class="tab-content" id="tab-tasks">
+          ${contact.tasks && contact.tasks.length > 0 ? `
+            <div class="tasks-list">
+              ${contact.tasks.map(task => `
+                <div class="task-item">
+                  <input type="checkbox" ${task.status === 'COMPLETED' ? 'checked' : ''} onchange="updateTask('${task.id}', this.checked)">
+                  <div class="task-content">
+                    <div class="task-title">${task.title}</div>
+                    <div class="task-meta">
+                      ${task.dueDate ? `<span>Due: ${new Date(task.dueDate).toLocaleDateString()}</span>` : ''}
+                      ${task.assignee ? `<span>Assigned to: ${task.assignee.firstName} ${task.assignee.lastName}</span>` : ''}
+                      <span class="badge badge-${task.priority.toLowerCase()}">${task.priority}</span>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          ` : '<p class="empty-state">No tasks yet</p>'}
+        </div>
+
+        <!-- Notes Tab -->
+        <div class="tab-content" id="tab-notes">
+          ${contact.notes && contact.notes.length > 0 ? `
+            <div class="notes-list">
+              ${contact.notes.map(note => `
+                <div class="note-item ${note.isPinned ? 'pinned' : ''}">
+                  ${note.isPinned ? '<div class="pin-icon">📌</div>' : ''}
+                  <div class="note-content">${escapeHtml(note.content)}</div>
+                  <div class="note-meta">
+                    ${note.user ? `${note.user.firstName} ${note.user.lastName}` : 'Unknown'} • 
+                    ${new Date(note.createdAt).toLocaleString()}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          ` : '<p class="empty-state">No notes yet</p>'}
+        </div>
+      </main>
+    </div>
+
+    <script>
+      // Tab switching
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+          
+          tab.classList.add('active');
+          document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        });
+      });
+
+      function updateTask(taskId, completed) {
+        fetch('/api/crm/tasks/' + taskId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: completed ? 'COMPLETED' : 'TODO' })
+        }).then(() => location.reload());
+      }
+
+      function getInitials(name) {
+        if (!name) return '?';
+        return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+      }
+
+      function getRatingIcon(rating) {
+        return { 'HOT': '🔥', 'WARM': '🟡', 'COLD': '🔵' }[rating] || '';
+      }
+
+      function formatNumber(num) {
+        return new Intl.NumberFormat('en-US').format(num);
+      }
+
+      function getActivityIcon(type) {
+        const icons = {
+          'CALL': '📞', 'EMAIL': '✉️', 'SMS': '💬', 'CHAT': '💭',
+          'MEETING': '📅', 'NOTE': '📝', 'TASK': '✓', 'DEAL_CREATED': '💼',
+          'DEAL_UPDATED': '💰', 'DEAL_WON': '🎉', 'DEAL_LOST': '❌',
+          'STATUS_CHANGED': '🔄', 'CUSTOM': '📌'
+        };
+        return icons[type] || '📌';
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function getTimelineHTML(contact) {
+        const items = [];
+        
+        // Add notes
+        if (contact.notes) {
+          contact.notes.forEach(note => {
+            items.push({
+              date: new Date(note.createdAt),
+              html: \`<div class="timeline-item">
+                <div class="timeline-icon">📝</div>
+                <div class="timeline-content">
+                  <div class="timeline-title">Note added</div>
+                  <div class="timeline-text">\${escapeHtml(note.content)}</div>
+                  <div class="timeline-meta">\${note.user ? note.user.firstName + ' ' + note.user.lastName : 'Unknown'} • \${new Date(note.createdAt).toLocaleString()}</div>
+                </div>
+              </div>\`
+            });
+          });
+        }
+        
+        // Add activities
+        if (contact.activities) {
+          contact.activities.forEach(activity => {
+            items.push({
+              date: new Date(activity.occurredAt),
+              html: \`<div class="timeline-item">
+                <div class="timeline-icon">\${getActivityIcon(activity.activityType)}</div>
+                <div class="timeline-content">
+                  <div class="timeline-title">\${activity.title}</div>
+                  \${activity.description ? \`<div class="timeline-text">\${escapeHtml(activity.description)}</div>\` : ''}
+                  <div class="timeline-meta">\${new Date(activity.occurredAt).toLocaleString()}</div>
+                </div>
+              </div>\`
+            });
+          });
+        }
+        
+        // Sort by date descending
+        items.sort((a, b) => b.date - a.date);
+        
+        return items.length > 0 ? items.map(item => item.html).join('') : '<p class="empty-state">No activity yet</p>';
+      }
+    </script>
+    `
+  }) %>
+</body>
+</html>

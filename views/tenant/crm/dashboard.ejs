@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CRM Dashboard</title>
+</head>
+<body>
+  <%- include('../../layout', { 
+    user, 
+    activeApp: 'crm',
+    userPermissions: permissions || [],
+    body: `
+    <div class="page-header">
+      <h1>CRM Dashboard</h1>
+      <div class="header-actions">
+        ${permissions.includes('crm:create') ? '<a href="/tenant/crm/contacts/new" class="btn btn-primary">+ New Contact</a>' : ''}
+      </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-content">
+          <div class="stat-value">${stats.total || 0}</div>
+          <div class="stat-label">Total Contacts</div>
+        </div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">🔥</div>
+        <div class="stat-content">
+          <div class="stat-value">${stats.leads || 0}</div>
+          <div class="stat-label">Active Leads</div>
+        </div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">💼</div>
+        <div class="stat-content">
+          <div class="stat-value">${stats.opportunities || 0}</div>
+          <div class="stat-label">Opportunities</div>
+        </div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-content">
+          <div class="stat-value">${stats.customers || 0}</div>
+          <div class="stat-label">Customers</div>
+        </div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">💰</div>
+        <div class="stat-content">
+          <div class="stat-value">${dealStats.open || 0}</div>
+          <div class="stat-label">Open Deals</div>
+        </div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">📋</div>
+        <div class="stat-content">
+          <div class="stat-value">${stats.openTasks || 0}</div>
+          <div class="stat-label">Open Tasks</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard Content -->
+    <div class="dashboard-grid">
+      <!-- Recent Activity -->
+      <div class="dashboard-card">
+        <div class="card-header">
+          <h3>Recent Activity</h3>
+          <a href="/tenant/crm/contacts" class="btn-link">View All</a>
+        </div>
+        <div class="card-body">
+          ${recentActivity && recentActivity.length > 0 ? `
+            <div class="activity-list">
+              ${recentActivity.map(activity => `
+                <div class="activity-item">
+                  <div class="activity-icon">${getActivityIcon(activity.activityType)}</div>
+                  <div class="activity-content">
+                    <div class="activity-title">${activity.title}</div>
+                    <div class="activity-meta">${formatDate(activity.occurredAt)}</div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          ` : '<p class="empty-state">No recent activity</p>'}
+        </div>
+      </div>
+
+      <!-- Pipeline Overview -->
+      <div class="dashboard-card">
+        <div class="card-header">
+          <h3>Sales Pipeline</h3>
+          <a href="/tenant/crm/deals" class="btn-link">View Pipeline</a>
+        </div>
+        <div class="card-body">
+          ${pipelines && pipelines.length > 0 ? `
+            <div class="pipeline-summary">
+              ${pipelines.map(pipeline => `
+                <a href="/tenant/crm/pipeline/${pipeline.id}" class="pipeline-card">
+                  <div class="pipeline-name">${pipeline.name}</div>
+                  <div class="pipeline-count">${pipeline._count.deals} deals</div>
+                </a>
+              `).join('')}
+            </div>
+          ` : '<p class="empty-state">No pipelines configured</p>'}
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function getActivityIcon(type) {
+        const icons = {
+          'CALL': '📞',
+          'EMAIL': '✉️',
+          'SMS': '💬',
+          'CHAT': '💭',
+          'MEETING': '📅',
+          'NOTE': '📝',
+          'TASK': '✓',
+          'DEAL_CREATED': '💼',
+          'DEAL_UPDATED': '💰',
+          'DEAL_WON': '🎉',
+          'DEAL_LOST': '❌',
+          'STATUS_CHANGED': '🔄',
+          'CUSTOM': '📌'
+        };
+        return icons[type] || '📌';
+      }
+
+      function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const diff = now - date;
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+
+        if (minutes < 1) return 'Just now';
+        if (minutes < 60) return minutes + ' minutes ago';
+        if (hours < 24) return hours + ' hours ago';
+        if (days < 7) return days + ' days ago';
+        return date.toLocaleDateString();
+      }
+    </script>
+    `
+  }) %>
+</body>
+</html>

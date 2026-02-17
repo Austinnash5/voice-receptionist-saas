@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>New Contact</title>
+</head>
+<body>
+  <%- include('../../layout', { 
+    user, 
+    activeApp: 'crm',
+    userPermissions: permissions || [],
+    body: `
+    <div class="page-header">
+      <div class="breadcrumb">
+        <a href="/tenant/crm/contacts">Contacts</a> / New Contact
+      </div>
+    </div>
+
+    <div class="form-container">
+      <form method="POST" action="/tenant/crm/contacts" class="contact-form">
+        <div class="form-section">
+          <h3>Basic Information</h3>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="firstName">First Name <span class="required">*</span></label>
+              <input type="text" id="firstName" name="firstName" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="lastName">Last Name <span class="required">*</span></label>
+              <input type="text" id="lastName" name="lastName" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="email">Email <span class="required">*</span></label>
+              <input type="email" id="email" name="email" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="phone">Phone</label>
+              <input type="tel" id="phone" name="phone">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="mobile">Mobile</label>
+              <input type="tel" id="mobile" name="mobile">
+            </div>
+            
+            <div class="form-group">
+              <label for="title">Job Title</label>
+              <input type="text" id="title" name="title">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Company Information</h3>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="companyId">Company</label>
+              <select id="companyId" name="companyId">
+                <option value="">-- Select Company --</option>
+                ${companies ? companies.map(c => `<option value="${c.id}">${c.name}</option>`).join('') : ''}
+              </select>
+              <small>Or <a href="#" id="createCompanyLink">create a new company</a></small>
+            </div>
+            
+            <div class="form-group">
+              <label for="website">Website</label>
+              <input type="url" id="website" name="website">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Classification</h3>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="lifecycle">Lifecycle Stage <span class="required">*</span></label>
+              <select id="lifecycle" name="lifecycle" required>
+                <option value="LEAD" selected>Lead</option>
+                <option value="MQL">Marketing Qualified Lead</option>
+                <option value="SQL">Sales Qualified Lead</option>
+                <option value="OPPORTUNITY">Opportunity</option>
+                <option value="CUSTOMER">Customer</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="rating">Rating</label>
+              <select id="rating" name="rating">
+                <option value="">-- Select Rating --</option>
+                <option value="HOT">🔥 Hot</option>
+                <option value="WARM">🟡 Warm</option>
+                <option value="COLD">🔵 Cold</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="source">Lead Source</label>
+              <input type="text" id="source" name="source" placeholder="e.g., Website, Referral, Event">
+            </div>
+            
+            <div class="form-group">
+              <label for="ownerId">Owner</label>
+              <select id="ownerId" name="ownerId">
+                <option value="">-- Assign to --</option>
+                ${users ? users.map(u => `<option value="${u.id}" ${u.id === user.id ? 'selected' : ''}>${u.firstName} ${u.lastName}</option>`).join('') : ''}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Address</h3>
+          
+          <div class="form-group full-width">
+            <label for="address">Street Address</label>
+            <input type="text" id="address" name="address">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="city">City</label>
+              <input type="text" id="city" name="city">
+            </div>
+            
+            <div class="form-group">
+              <label for="state">State/Province</label>
+              <input type="text" id="state" name="state">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="postalCode">Postal Code</label>
+              <input type="text" id="postalCode" name="postalCode">
+            </div>
+            
+            <div class="form-group">
+              <label for="country">Country</label>
+              <input type="text" id="country" name="country">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Tags</h3>
+          
+          <div class="form-group full-width">
+            <label for="tags">Tags</label>
+            <div class="tag-selector">
+              <div id="selectedTags" class="selected-tags"></div>
+              <input type="text" id="tagInput" placeholder="Type to search tags...">
+              <input type="hidden" id="tags" name="tags">
+              <div id="tagDropdown" class="tag-dropdown"></div>
+            </div>
+            ${availableTags && availableTags.length > 0 ? `
+            <div class="suggested-tags">
+              ${availableTags.map(tag => `
+                <span class="tag-suggestion" data-id="${tag.id}" data-name="${tag.name}" data-color="${tag.color}" style="background-color: ${tag.color}">
+                  ${tag.name}
+                </span>
+              `).join('')}
+            </div>
+            ` : ''}
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <a href="/tenant/crm/contacts" class="btn btn-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary">Create Contact</button>
+        </div>
+      </form>
+    </div>
+
+    <script>
+      // Tag selector functionality
+      const selectedTagIds = new Set();
+      const tagInput = document.getElementById('tagInput');
+      const tagDropdown = document.getElementById('tagDropdown');
+      const selectedTagsContainer = document.getElementById('selectedTags');
+      const tagsHidden = document.getElementById('tags');
+
+      const tags = ${JSON.stringify(availableTags || [])};
+
+      tagInput.addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        const filtered = tags.filter(t => t.name.toLowerCase().includes(query));
+        
+        if (filtered.length > 0) {
+          tagDropdown.innerHTML = filtered.map(t => 
+            \`<div class="tag-option" data-id="\${t.id}" data-name="\${t.name}" data-color="\${t.color}">
+              <span class="tag-preview" style="background-color: \${t.color}"></span>
+              \${t.name}
+            </div>\`
+          ).join('');
+          tagDropdown.style.display = 'block';
+        } else {
+          tagDropdown.style.display = 'none';
+        }
+      });
+
+      tagDropdown.addEventListener('click', function(e) {
+        const option = e.target.closest('.tag-option');
+        if (option) {
+          addTag(option.dataset.id, option.dataset.name, option.dataset.color);
+          tagInput.value = '';
+          tagDropdown.style.display = 'none';
+        }
+      });
+
+      document.querySelectorAll('.tag-suggestion').forEach(tag => {
+        tag.addEventListener('click', function() {
+          addTag(this.dataset.id, this.dataset.name, this.dataset.color);
+        });
+      });
+
+      function addTag(id, name, color) {
+        if (selectedTagIds.has(id)) return;
+        
+        selectedTagIds.add(id);
+        
+        const tagEl = document.createElement('span');
+        tagEl.className = 'selected-tag';
+        tagEl.style.backgroundColor = color;
+        tagEl.innerHTML = \`\${name} <span class="remove-tag" onclick="removeTag('\${id}')">&times;</span>\`;
+        selectedTagsContainer.appendChild(tagEl);
+        
+        updateHiddenInput();
+      }
+
+      function removeTag(id) {
+        selectedTagIds.delete(id);
+        updateHiddenInput();
+        renderSelectedTags();
+      }
+
+      function updateHiddenInput() {
+        tagsHidden.value = Array.from(selectedTagIds).join(',');
+      }
+
+      function renderSelectedTags() {
+        selectedTagsContainer.innerHTML = '';
+        selectedTagIds.forEach(id => {
+          const tag = tags.find(t => t.id === id);
+          if (tag) {
+            const tagEl = document.createElement('span');
+            tagEl.className = 'selected-tag';
+            tagEl.style.backgroundColor = tag.color;
+            tagEl.innerHTML = \`\${tag.name} <span class="remove-tag" onclick="removeTag('\${id}')">&times;</span>\`;
+            selectedTagsContainer.appendChild(tagEl);
+          }
+        });
+      }
+
+      // Close dropdown when clicking outside
+      document.addEventListener('click', function(e) {
+        if (!e.target.closest('.tag-selector')) {
+          tagDropdown.style.display = 'none';
+        }
+      });
+
+      // New company modal (placeholder)
+      document.getElementById('createCompanyLink').addEventListener('click', function(e) {
+        e.preventDefault();
+        alert('Company creation modal coming soon. For now, please create the company first from the Companies page.');
+      });
+    </script>
+    `
+  }) %>
+</body>
+</html>

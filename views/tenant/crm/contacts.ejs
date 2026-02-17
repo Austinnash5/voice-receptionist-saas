@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Contacts</title>
+</head>
+<body>
+  <%- include('../../layout', { 
+    user, 
+    activeApp: 'crm',
+    userPermissions: permissions || [],
+    body: `
+    <div class="page-header">
+      <h1>Contacts</h1>
+      <div class="header-actions">
+        ${permissions.includes('crm:create') ? '<a href="/tenant/crm/contacts/new" class="btn btn-primary">+ New Contact</a>' : ''}
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar">
+      <form method="GET" action="/tenant/crm/contacts" class="filters-form">
+        <input type="text" name="search" placeholder="Search contacts..." value="${search || ''}" class="search-input">
+        
+        <select name="lifecycle" class="filter-select">
+          <option value="">All Lifecycles</option>
+          <option value="LEAD" ${lifecycle === 'LEAD' ? 'selected' : ''}>Lead</option>
+          <option value="MQL" ${lifecycle === 'MQL' ? 'selected' : ''}>MQL</option>
+          <option value="SQL" ${lifecycle === 'SQL' ? 'selected' : ''}>SQL</option>
+          <option value="OPPORTUNITY" ${lifecycle === 'OPPORTUNITY' ? 'selected' : ''}>Opportunity</option>
+          <option value="CUSTOMER" ${lifecycle === 'CUSTOMER' ? 'selected' : ''}>Customer</option>
+          <option value="LOST" ${lifecycle === 'LOST' ? 'selected' : ''}>Lost</option>
+        </select>
+        
+        <select name="rating" class="filter-select">
+          <option value="">All Ratings</option>
+          <option value="HOT" ${rating === 'HOT' ? 'selected' : ''}>🔥 Hot</option>
+          <option value="WARM" ${rating === 'WARM' ? 'selected' : ''}>🟡 Warm</option>
+          <option value="COLD" ${rating === 'COLD' ? 'selected' : ''}>🔵 Cold</option>
+        </select>
+        
+        <button type="submit" class="btn">Filter</button>
+        ${(search || lifecycle || rating) ? '<a href="/tenant/crm/contacts" class="btn-link">Clear</a>' : ''}
+      </form>
+    </div>
+
+    <!-- Contacts Table -->
+    <div class="table-container">
+      ${contacts && contacts.length > 0 ? `
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Company</th>
+              <th>Lifecycle</th>
+              <th>Rating</th>
+              <th>Owner</th>
+              <th>Tags</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${contacts.map(contact => `
+              <tr>
+                <td>
+                  <a href="/tenant/crm/contacts/${contact.id}" class="contact-name">
+                    ${contact.fullName || contact.firstName || contact.lastName || 'Unnamed'}
+                  </a>
+                </td>
+                <td>${contact.email || '-'}</td>
+                <td>${contact.phone || '-'}</td>
+                <td>${contact.company ? contact.company.name : '-'}</td>
+                <td>
+                  <span class="badge badge-${contact.lifecycle.toLowerCase()}">
+                    ${contact.lifecycle}
+                  </span>
+                </td>
+                <td>
+                  ${contact.rating ? `<span class="rating-${contact.rating.toLowerCase()}">${getRatingIcon(contact.rating)}</span>` : '-'}
+                </td>
+                <td>${contact.owner ? `${contact.owner.firstName} ${contact.owner.lastName}` : '-'}</td>
+                <td>
+                  <div class="tags">
+                    ${contact.tags.slice(0, 3).map(ct => `
+                      <span class="tag" style="background-color: ${ct.tag.color || '#ccc'}">${ct.tag.name}</span>
+                    `).join('')}
+                    ${contact.tags.length > 3 ? `<span class="tag-more">+${contact.tags.length - 3}</span>` : ''}
+                  </div>
+                </td>
+                <td>
+                  <div class="action-buttons">
+                    <a href="/tenant/crm/contacts/${contact.id}" class="btn-icon" title="View">👁️</a>
+                    ${permissions.includes('crm:edit') ? `<a href="/tenant/crm/contacts/${contact.id}/edit" class="btn-icon" title="Edit">✏️</a>` : ''}
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <!-- Pagination -->
+        ${pagination && pagination.pages > 1 ? `
+          <div class="pagination">
+            ${pagination.page > 1 ? `<a href="?page=${pagination.page - 1}${getQueryString()}" class="btn">← Previous</a>` : '<span class="btn disabled">← Previous</span>'}
+            <span class="pagination-info">Page ${pagination.page} of ${pagination.pages} (${pagination.total} contacts)</span>
+            ${pagination.page < pagination.pages ? `<a href="?page=${pagination.page + 1}${getQueryString()}" class="btn">Next →</a>` : '<span class="btn disabled">Next →</span>'}
+          </div>
+        ` : ''}
+      ` : '<div class="empty-state"><p>No contacts found</p><a href="/tenant/crm/contacts/new" class="btn btn-primary">+ Create Your First Contact</a></div>'}
+    </div>
+
+    <script>
+      function getRatingIcon(rating) {
+        const icons = { 'HOT': '🔥', 'WARM': '🟡', 'COLD': '🔵' };
+        return icons[rating] || '';
+      }
+
+      function getQueryString() {
+        const params = new URLSearchParams(window.location.search);
+        params.delete('page');
+        const qs = params.toString();
+        return qs ? '&' + qs : '';
+      }
+    </script>
+    `
+  }) %>
+</body>
+</html>

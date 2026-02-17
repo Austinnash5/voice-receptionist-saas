@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>${deal.title} - Deal Detail</title>
+</head>
+<body>
+  <%- include('../../layout', { 
+    user, 
+    activeApp: 'crm',
+    userPermissions: permissions || [],
+    body: `
+    <div class="page-header">
+      <div class="breadcrumb">
+        <a href="/tenant/crm/deals">Deals</a> / ${deal.title}
+      </div>
+      <div class="header-actions">
+        ${permissions.includes('crm:edit') && deal.status === 'OPEN' ? `
+        <button onclick="winDeal()" class="btn btn-success">Mark as Won</button>
+        <button onclick="loseDeal()" class="btn btn-danger">Mark as Lost</button>
+        <a href="/tenant/crm/deals/${deal.id}/edit" class="btn">Edit Deal</a>
+        ` : ''}
+      </div>
+    </div>
+
+    <div class="deal-detail-layout">
+      <!-- Left Sidebar -->
+      <aside class="deal-sidebar">
+        <div class="deal-header">
+          <h2>${deal.title}</h2>
+          <span class="badge badge-${deal.status.toLowerCase()}">${deal.status}</span>
+        </div>
+
+        ${deal.value ? `
+        <div class="deal-value-display">
+          <div class="value-amount">$${formatNumber(deal.value)}</div>
+          ${deal.stage?.probability ? `<div class="weighted-value">Weighted: $${formatNumber(deal.value * deal.stage.probability / 100)}</div>` : ''}
+        </div>
+        ` : ''}
+
+        <div class="deal-info">
+          <div class="info-section">
+            <h4>Pipeline & Stage</h4>
+            <div class="info-item">
+              <span class="info-label">Pipeline:</span>
+              <span>${deal.pipeline?.name || 'Unknown'}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Stage:</span>
+              <span class="stage-badge">${deal.stage?.name || 'Unknown'}</span>
+              ${deal.stage?.probability ? `<span class="stage-probability">(${deal.stage.probability}%)</span>` : ''}
+            </div>
+          </div>
+
+          <div class="info-section">
+            <h4>Relationships</h4>
+            ${deal.contact ? `
+            <div class="info-item">
+              <span class="info-label">Contact:</span>
+              <a href="/tenant/crm/contacts/${deal.contact.id}">${deal.contact.fullName || deal.contact.email}</a>
+            </div>
+            ` : ''}
+            ${deal.company ? `
+            <div class="info-item">
+              <span class="info-label">Company:</span>
+              <a href="/tenant/crm/companies/${deal.company.id}">${deal.company.name}</a>
+            </div>
+            ` : ''}
+            ${deal.owner ? `
+            <div class="info-item">
+              <span class="info-label">Owner:</span>
+              <span>${deal.owner.firstName} ${deal.owner.lastName}</span>
+            </div>
+            ` : ''}
+          </div>
+
+          <div class="info-section">
+            <h4>Timeline</h4>
+            ${deal.expectedCloseDate ? `
+            <div class="info-item">
+              <span class="info-label">Expected Close:</span>
+              <span>${new Date(deal.expectedCloseDate).toLocaleDateString()}</span>
+            </div>
+            ` : ''}
+            ${deal.actualCloseDate ? `
+            <div class="info-item">
+              <span class="info-label">Actual Close:</span>
+              <span>${new Date(deal.actualCloseDate).toLocaleDateString()}</span>
+            </div>
+            ` : ''}
+            <div class="info-item">
+              <span class="info-label">Created:</span>
+              <span>${new Date(deal.createdAt).toLocaleDateString()}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Last Updated:</span>
+              <span>${new Date(deal.updatedAt).toLocaleDateString()}</span>
+            </div>
+          </div>
+
+          ${deal.lostReason ? `
+          <div class="info-section">
+            <h4>Lost Reason</h4>
+            <div class="lost-reason">${escapeHtml(deal.lostReason)}</div>
+          </div>
+          ` : ''}
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="deal-main">
+        <div class="tabs">
+          <button class="tab active" data-tab="overview">Overview</button>
+          <button class="tab" data-tab="activities">Activities</button>
+          <button class="tab" data-tab="tasks">Tasks</button>
+        </div>
+
+        <!-- Overview Tab -->
+        <div class="tab-content active" id="tab-overview">
+          ${deal.description ? `
+          <div class="content-section">
+            <h3>Description</h3>
+            <div class="deal-description">${escapeHtml(deal.description)}</div>
+          </div>
+          ` : ''}
+
+          <div class="content-section">
+            <h3>Stage History</h3>
+            ${deal.activities && deal.activities.filter(a => a.activityType === 'DEAL_UPDATED').length > 0 ? `
+            <div class="stage-history">
+              ${deal.activities.filter(a => a.activityType === 'DEAL_UPDATED').reverse().map(activity => `
+              <div class="history-item">
+                <div class="history-icon">🔄</div>
+                <div class="history-content">
+                  <div class="history-title">${activity.title}</div>
+                  ${activity.description ? `<div class="history-text">${escapeHtml(activity.description)}</div>` : ''}
+                  <div class="history-meta">${new Date(activity.occurredAt).toLocaleString()}</div>
+                </div>
+              </div>
+              `).join('')}
+            </div>
+            ` : '<p class="empty-state">No stage changes yet</p>'}
+          </div>
+
+          ${deal.customFields && Object.keys(deal.customFields).length > 0 ? `
+          <div class="content-section">
+            <h3>Custom Fields</h3>
+            <div class="custom-fields">
+              ${Object.entries(deal.customFields).map(([key, value]) => `
+              <div class="field-item">
+                <span class="field-label">${key}:</span>
+                <span class="field-value">${value}</span>
+              </div>
+              `).join('')}
+            </div>
+          </div>
+          ` : ''}
+        </div>
+
+        <!-- Activities Tab -->
+        <div class="tab-content" id="tab-activities">
+          ${deal.activities && deal.activities.length > 0 ? `
+          <div class="timeline">
+            ${deal.activities.map(activity => `
+            <div class="timeline-item">
+              <div class="timeline-icon">${getActivityIcon(activity.activityType)}</div>
+              <div class="timeline-content">
+                <div class="timeline-title">${activity.title}</div>
+                ${activity.description ? `<div class="timeline-text">${escapeHtml(activity.description)}</div>` : ''}
+                <div class="timeline-meta">${new Date(activity.occurredAt).toLocaleString()}</div>
+              </div>
+            </div>
+            `).join('')}
+          </div>
+          ` : '<p class="empty-state">No activities yet</p>'}
+        </div>
+
+        <!-- Tasks Tab -->
+        <div class="tab-content" id="tab-tasks">
+          ${deal.tasks && deal.tasks.length > 0 ? `
+          <div class="tasks-list">
+            ${deal.tasks.map(task => `
+            <div class="task-item">
+              <input type="checkbox" ${task.status === 'COMPLETED' ? 'checked' : ''} onchange="updateTask('${task.id}', this.checked)">
+              <div class="task-content">
+                <div class="task-title">${task.title}</div>
+                <div class="task-meta">
+                  ${task.dueDate ? `<span>Due: ${new Date(task.dueDate).toLocaleDateString()}</span>` : ''}
+                  ${task.assignee ? `<span>Assigned to: ${task.assignee.firstName} ${task.assignee.lastName}</span>` : ''}
+                  <span class="badge badge-${task.priority.toLowerCase()}">${task.priority}</span>
+                </div>
+              </div>
+            </div>
+            `).join('')}
+          </div>
+          ` : '<p class="empty-state">No tasks yet</p>'}
+        </div>
+      </main>
+    </div>
+
+    <script>
+      // Tab switching
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+          
+          tab.classList.add('active');
+          document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        });
+      });
+
+      function formatNumber(num) {
+        return new Intl.NumberFormat('en-US').format(num);
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function getActivityIcon(type) {
+        const icons = {
+          'CALL': '📞', 'EMAIL': '✉️', 'SMS': '💬', 'CHAT': '💭',
+          'MEETING': '📅', 'NOTE': '📝', 'TASK': '✓', 'DEAL_CREATED': '💼',
+          'DEAL_UPDATED': '🔄', 'DEAL_WON': '🎉', 'DEAL_LOST': '❌',
+          'STATUS_CHANGED': '🔄', 'CUSTOM': '📌'
+        };
+        return icons[type] || '📌';
+      }
+
+      function updateTask(taskId, completed) {
+        fetch('/api/crm/tasks/' + taskId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: completed ? 'COMPLETED' : 'TODO' })
+        }).then(() => location.reload());
+      }
+
+      function winDeal() {
+        const closeDate = prompt('Actual close date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+        if (closeDate) {
+          fetch('/api/crm/deals/${deal.id}/win', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ actualCloseDate: closeDate })
+          }).then(response => {
+            if (response.ok) {
+              alert('Deal marked as won!');
+              location.reload();
+            } else {
+              alert('Failed to update deal');
+            }
+          });
+        }
+      }
+
+      function loseDeal() {
+        const reason = prompt('Why was this deal lost?');
+        if (reason) {
+          fetch('/api/crm/deals/${deal.id}/lose', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lostReason: reason })
+          }).then(response => {
+            if (response.ok) {
+              alert('Deal marked as lost');
+              location.reload();
+            } else {
+              alert('Failed to update deal');
+            }
+          });
+        }
+      }
+    </script>
+    `
+  }) %>
+</body>
+</html>

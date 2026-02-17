@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>New Deal</title>
+</head>
+<body>
+  <%- include('../../layout', { 
+    user, 
+    activeApp: 'crm',
+    userPermissions: permissions || [],
+    body: `
+    <div class="page-header">
+      <div class="breadcrumb">
+        <a href="/tenant/crm/deals">Deals</a> / New Deal
+      </div>
+    </div>
+
+    <div class="form-container">
+      <form method="POST" action="/tenant/crm/deals" class="deal-form">
+        <div class="form-section">
+          <h3>Basic Information</h3>
+          
+          <div class="form-group full-width">
+            <label for="title">Deal Title <span class="required">*</span></label>
+            <input type="text" id="title" name="title" required placeholder="e.g., Acme Corp - Annual License">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="value">Deal Value</label>
+              <input type="number" id="value" name="value" step="0.01" min="0" placeholder="0.00">
+            </div>
+            
+            <div class="form-group">
+              <label for="expectedCloseDate">Expected Close Date</label>
+              <input type="date" id="expectedCloseDate" name="expectedCloseDate">
+            </div>
+          </div>
+
+          <div class="form-group full-width">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="4" placeholder="Details about this deal..."></textarea>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Pipeline & Stage</h3>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pipelineId">Pipeline <span class="required">*</span></label>
+              <select id="pipelineId" name="pipelineId" required onchange="loadStages(this.value)">
+                <option value="">-- Select Pipeline --</option>
+                ${pipelines ? pipelines.map(p => `<option value="${p.id}" ${pipelineId === p.id ? 'selected' : ''}>${p.name}</option>`).join('') : ''}
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="stageId">Stage <span class="required">*</span></label>
+              <select id="stageId" name="stageId" required>
+                <option value="">-- Select Pipeline First --</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Relationships</h3>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="contactId">Contact</label>
+              <select id="contactId" name="contactId">
+                <option value="">-- Select Contact --</option>
+                ${contacts ? contacts.map(c => `<option value="${c.id}">${c.fullName || c.email}</option>`).join('') : ''}
+              </select>
+              <small>Or <a href="/tenant/crm/contacts/new" target="_blank">create a new contact</a></small>
+            </div>
+            
+            <div class="form-group">
+              <label for="companyId">Company</label>
+              <select id="companyId" name="companyId" onchange="filterContactsByCompany(this.value)">
+                <option value="">-- Select Company --</option>
+                ${companies ? companies.map(c => `<option value="${c.id}">${c.name}</option>`).join('') : ''}
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="ownerId">Owner</label>
+              <select id="ownerId" name="ownerId">
+                <option value="">-- Assign to --</option>
+                ${users ? users.map(u => `<option value="${u.id}" ${u.id === user.id ? 'selected' : ''}>${u.firstName} ${u.lastName}</option>`).join('') : ''}
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="priority">Priority</label>
+              <select id="priority" name="priority">
+                <option value="LOW">Low</option>
+                <option value="MEDIUM" selected>Medium</option>
+                <option value="HIGH">High</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <a href="/tenant/crm/deals" class="btn btn-secondary">Cancel</a>
+          <button type="submit" class="btn btn-primary">Create Deal</button>
+        </div>
+      </form>
+    </div>
+
+    <script>
+      const allPipelines = ${JSON.stringify(pipelines || [])};
+      const allContacts = ${JSON.stringify(contacts || [])};
+
+      // Load stages when pipeline is selected
+      function loadStages(pipelineId) {
+        const stageSelect = document.getElementById('stageId');
+        stageSelect.innerHTML = '<option value="">-- Select Stage --</option>';
+        
+        const pipeline = allPipelines.find(p => p.id === pipelineId);
+        if (pipeline && pipeline.stages) {
+          pipeline.stages.forEach(stage => {
+            const option = document.createElement('option');
+            option.value = stage.id;
+            option.textContent = \`\${stage.name}\${stage.probability ? ' (' + stage.probability + '%)' : ''}\`;
+            stageSelect.appendChild(option);
+          });
+        }
+      }
+
+      // Filter contacts by company
+      function filterContactsByCompany(companyId) {
+        const contactSelect = document.getElementById('contactId');
+        contactSelect.innerHTML = '<option value="">-- Select Contact --</option>';
+        
+        const filteredContacts = companyId 
+          ? allContacts.filter(c => c.companyId === companyId)
+          : allContacts;
+        
+        filteredContacts.forEach(contact => {
+          const option = document.createElement('option');
+          option.value = contact.id;
+          option.textContent = contact.fullName || contact.email;
+          contactSelect.appendChild(option);
+        });
+      }
+
+      // Initialize stages if pipeline is pre-selected
+      const pipelineSelect = document.getElementById('pipelineId');
+      if (pipelineSelect.value) {
+        loadStages(pipelineSelect.value);
+        
+        // If stageId is in URL params, select it
+        const urlParams = new URLSearchParams(window.location.search);
+        const stageIdParam = urlParams.get('stageId');
+        if (stageIdParam) {
+          setTimeout(() => {
+            document.getElementById('stageId').value = stageIdParam;
+          }, 100);
+        }
+      }
+    </script>
+    `
+  }) %>
+</body>
+</html>
