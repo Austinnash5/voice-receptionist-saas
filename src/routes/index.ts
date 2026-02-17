@@ -8,6 +8,8 @@ import knowledgeRoutes from './knowledge.routes';
 import flowRoutes from './flow.routes';
 import analyticsRoutes from './analytics.routes';
 import websiteRoutes from './website.routes';
+import crmRoutes from './crm.routes';
+import usersRoutes from './users.routes';
 
 const router = express.Router();
 
@@ -143,5 +145,7 @@ router.use('/api', requireAuth, knowledgeRoutes);
 router.use('/api', flowRoutes);
 router.use('/api/tenants/:tenantId/analytics', requireAuth, analyticsRoutes);
 router.use('/api/tenants/:tenantId/websites', requireAuth, websiteRoutes);
+router.use('/api/crm', crmRoutes);
+router.use('/api/users', usersRoutes);
 
 export default router;
