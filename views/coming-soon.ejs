@@ -1,0 +1,13 @@
+<%- include('layout', { 
+  activeApp: module.includes('SMS') ? 'sms' : module.includes('Email') ? 'email' : module.includes('Chatbot') ? 'chatbot' : 'voice',
+  body: `
+    <div class="container" style="text-align: center; padding: 4rem 0;">
+      <div style="font-size: 4rem; margin-bottom: 2rem;">🚧</div>
+      <h1 style="margin-bottom: 1rem;">${module}</h1>
+      <p style="font-size: 1.2rem; color: #7f8c8d; margin-bottom: 2rem;">
+        This feature is coming soon! We're working hard to bring you amazing ${module} capabilities.
+      </p>
+      <a href="/tenant/dashboard" class="btn btn-primary">Return to Dashboard</a>
+    </div>
+  `
+}) %>

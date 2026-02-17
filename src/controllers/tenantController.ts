@@ -101,6 +101,7 @@ export async function getDashboard(req: Request, res: Response) {
       tenant: req.tenant,
       stats,
       recentCalls,
+      userPermissions: req.userPermissions || [],
     });
   } catch (error) {
     console.error('Tenant dashboard error:', error);
@@ -148,6 +149,7 @@ export async function getCalls(req: Request, res: Response) {
         total,
         totalPages: Math.ceil(total / limit),
       },
+      userPermissions: req.userPermissions || [],
     });
   } catch (error) {
     console.error('Get calls error:', error);
@@ -233,6 +235,7 @@ export async function getLeads(req: Request, res: Response) {
       leads,
       leadStats,
       filterStatus: status,
+      userPermissions: req.userPermissions || [],
     });
   } catch (error) {
     console.error('Get leads error:', error);

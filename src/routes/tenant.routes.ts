@@ -94,4 +94,32 @@ router.get('/crm/tasks', requirePermission('crm', 'view'), getTasksPage);
 router.get('/settings/team', requirePermission('users', 'view'), getTeamPage);
 router.get('/settings/roles', requirePermission('users', 'manage'), getRolesPage);
 
+// Placeholder routes for future modules (SMS, Email, Chatbot)
+router.get('/sms/conversations', requirePermission('sms', 'view'), (req, res) => {
+  res.render('coming-soon', { 
+    user: req.user, 
+    tenant: req.tenant, 
+    module: 'SMS Conversations',
+    userPermissions: req.userPermissions || [],
+  });
+});
+
+router.get('/email/campaigns', requirePermission('email', 'view'), (req, res) => {
+  res.render('coming-soon', { 
+    user: req.user, 
+    tenant: req.tenant, 
+    module: 'Email Campaigns',
+    userPermissions: req.userPermissions || [],
+  });
+});
+
+router.get('/chatbot/config', requirePermission('chatbot', 'view'), (req, res) => {
+  res.render('coming-soon', { 
+    user: req.user, 
+    tenant: req.tenant, 
+    module: 'Chatbot Configuration',
+    userPermissions: req.userPermissions || [],
+  });
+});
+
 export default router;

@@ -36,6 +36,20 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       };
     }
 
+    // Load user permissions if they have a roleId
+    if (user.roleId) {
+      const rolePermissions = await prisma.rolePermission.findMany({
+        where: { roleId: user.roleId },
+        include: { permission: true },
+      });
+      
+      req.userPermissions = rolePermissions.map(rp => 
+        `${rp.permission.resource}:${rp.permission.action}`
+      );
+    } else {
+      req.userPermissions = [];
+    }
+
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);

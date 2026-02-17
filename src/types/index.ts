@@ -177,6 +177,7 @@ declare global {
         name: string;
         slug: string;
       };
+      userPermissions?: string[];
     }
   }
 }
